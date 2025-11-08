@@ -1,86 +1,81 @@
 # AI-Driven DB RAG & Analytics - Project Plan
 
 ## 🎯 Project Overview
-An intelligent data assistant that combines Retrieval-Augmented Generation (RAG) with advanced analytics to transform how users interact with databases through natural language queries, automated insights, and intelligent visualizations.
+An intelligent data assistant that connects to MySQL, PostgreSQL, and MongoDB databases, using Retrieval-Augmented Generation (RAG) to transform natural language queries into actionable insights with automated visualizations, anomaly detection, and multi-format exports. Powered by Claude Sonnet 4.5 for all clients, enabling advanced reasoning, multi-turn conversations, and enterprise-grade safety.
 
-## 🚀 Core Features & Implementation Ideas
+## 🚀 Core Architecture & Features
 
-### 1. **Smart Schema Understanding & RAG System**
-- **Schema Vectorization**: Convert database schemas, table relationships, and metadata into vector embeddings
-- **Semantic Query Parsing**: Use LLMs to understand natural language queries and map them to SQL
-- **Context-Aware RAG**: Build a knowledge base of:
-  - Table relationships and foreign keys
-  - Common query patterns
+### 1. **Universal Database Connector Layer**
+- **Multi-Database Support**: Unified interface for MySQL, PostgreSQL, and MongoDB
+- **Connection Pool Management**: Efficient connection handling with async support
+- **Schema Introspection**: Automatic schema discovery and metadata extraction
+- **Query Translation**: Dialect-specific query generation (SQL for relational, MongoDB query language)
+- **Transaction Management**: ACID compliance for supported databases
+
+### 2. **Schema Understanding & RAG System**
+- **Hybrid Schema Vectorization**: 
+  - Relational schemas (tables, columns, relationships, constraints)
+  - NoSQL schemas (collections, document structures, indexes)
+- **Claude-Powered Schema Analysis**: AI understanding of data relationships across database types
+- **Semantic Query Parser**: Natural language → database-specific queries
+- **Cross-Database Knowledge Base**:
+  - Table/Collection relationships and foreign keys
+  - Common query patterns per database type
   - Business logic and domain knowledge
-  - Historical query performance data
+  - Historical query performance metrics
 
-### 2. **Natural Language Query Interface**
-- **Multi-turn Conversations**: Support follow-up questions and context retention
-- **Query Suggestion Engine**: Proactively suggest relevant queries based on data patterns
-- **Ambiguity Resolution**: Ask clarifying questions when queries are unclear
-- **Query Optimization**: Automatically optimize generated SQL for performance
+### 3. **Natural Language Query Interface**
+- **Multi-Database Query Understanding**: Single query can span multiple databases
+- **Database-Agnostic Conversations**: User doesn't need to know SQL vs NoSQL
+- **Smart Query Routing**: Automatically determines which database(s) to query
+- **Query Optimization**: Database-specific optimization strategies
+- **Join Across Databases**: Combine data from MySQL, PostgreSQL, and MongoDB
 
-### 3. **Intelligent Visualizations**
-- **Auto-Chart Selection**: AI chooses the best visualization type based on data characteristics
-- **Interactive Dashboards**: Real-time, filterable charts with drill-down capabilities
-- **Anomaly Highlighting**: Visual indicators for detected outliers and unusual patterns
-- **Comparative Views**: Side-by-side comparisons of different time periods or segments
+### 4. **Intelligent Visualization Engine**
+- **Auto-Chart Selection**: AI chooses optimal visualization based on data structure
+- **Real-Time Interactive Dashboards**: Live updates with WebSocket support
+- **Multi-Source Visualizations**: Charts combining data from multiple databases
+- **Anomaly Highlighting**: Visual markers for detected outliers
+- **Export-Ready Formats**: Charts optimized for PDF/Excel export
 
-### 4. **Advanced Analytics Engine**
-- **Predictive Analytics**: Time series forecasting and trend analysis
-- **Clustering & Segmentation**: Automatic customer/product grouping
-- **Statistical Analysis**: Correlation, regression, and significance testing
-- **A/B Testing Framework**: Built-in experimental design and analysis
+### 5. **Advanced Analytics & Insights**
+- **Anomaly Detection**: Statistical and ML-based anomaly identification
+- **Trend Analysis**: Time-series forecasting across data sources
+- **Cross-Database Insights**: Correlations between relational and NoSQL data
+- **Automated Reporting**: Scheduled insight generation and delivery
 
-## 🔥 Innovative Features to Implement
+## 🔥 Database-Specific Features
 
-### 5. **Gemini-Powered Intelligence Hub**
-- **Multi-Modal Analysis**: Leverage Gemini's ability to understand text, images, and code simultaneously
-- **Schema Documentation**: Auto-generate comprehensive database documentation with Gemini
-- **Code Review & Optimization**: Gemini analyzes generated SQL for performance and security
-- **Natural Language Explanations**: Gemini provides human-friendly explanations of complex queries
-- **Smart Error Handling**: Gemini interprets database errors and suggests fixes in plain English
+### MySQL Features
+- **InnoDB Optimization**: Leverage MySQL-specific performance features
+- **Stored Procedure Support**: Execute and analyze stored procedures
+- **Replication Awareness**: Read from replicas for analytics queries
+- **JSON Column Support**: Modern MySQL JSON data type handling
 
-### 6. **Real-time Anomaly Detection**
-- **Streaming Analytics**: Monitor data changes in real-time
-- **ML-Powered Alerts**: Custom alert rules based on ML models
-- **Anomaly Explanation**: AI explains why something is considered anomalous
-- **Historical Context**: Compare current anomalies with past patterns
+### PostgreSQL Features
+- **Advanced Query Features**: CTEs, window functions, lateral joins
+- **JSONB Support**: Native JSON querying and indexing
+- **Full-Text Search**: PostgreSQL text search integration
+- **Array and Composite Types**: Handle complex data structures
 
-### 7. **Gemini-Enhanced Data Profiling**
-- **Intelligent Data Quality Assessment**: Gemini identifies complex data quality issues
-- **Automated Documentation**: Generate data dictionaries and field descriptions
-- **Schema Evolution Tracking**: Monitor and alert on schema changes with impact analysis
-- **Data Lineage Visualization**: Track data flow and transformations
-- **Compliance Monitoring**: GDPR, CCPA compliance checks with Gemini's reasoning
-- **Business Context Understanding**: Gemini infers business meaning from technical schemas
+### MongoDB Features
+- **Aggregation Pipeline**: Complex data transformations
+- **Flexible Schema Handling**: Dynamic document structure understanding
+- **Geospatial Queries**: Location-based analytics
+- **Time-Series Collections**: Optimized time-series data handling
 
-### 8. **Collaborative Intelligence**
-- **Query Sharing & Templates**: Save and share common query patterns
-- **Team Insights**: Collaborative annotation and discussion on findings
-- **Knowledge Graph**: Build organizational data knowledge over time
-- **Version Control**: Track analysis history and reproducibility
+## 🤖 Claude Sonnet 4.5 Integration Strategy
 
-### 9. **Multi-Modal Export & Reporting**
-- **Dynamic PDF Reports**: AI-generated executive summaries with key insights
-- **Excel Integration**: Smart Excel exports with formulas and formatting
-- **PowerPoint Generation**: Automated presentation creation
-- **API Integration**: Webhook-based real-time data sharing
-
-## 🤖 Gemini API Integration Strategy
-
-### Core Gemini Implementation
+### Multi-Database Intelligence
 ```python
-# Gemini Model Selection Strategy
-- **Gemini Pro**: Primary model for SQL generation, data analysis, and explanations
-- **Gemini Ultra**: Advanced reasoning for complex multi-table joins and business logic
-- **Gemini Flash**: Fast responses for real-time query suggestions and autocomplete
-- **Gemini Vision**: Multi-modal analysis of charts, diagrams, and visual data representations
+# Claude Model Assignment
+- **Claude Sonnet 4.5**: Primary model for SQL/NoSQL query generation, schema understanding, advanced reasoning, and multi-turn conversations
+- **Claude Haiku**: Fast responses for real-time query suggestions and autocomplete (if needed for lighter tasks)
 ```
 
-### Gemini-Specific Features
-- **Function Calling**: Use Gemini's function calling for structured database operations
-- **Code Execution**: Leverage Gemini's code execution capabilities for data validation
+### Claude-Specific Features
+- **Function Calling**: Use Claude's function calling for structured database operations
+- **Code Execution**: Leverage Claude's code execution capabilities for data validation
 - **Multi-Turn Conversations**: Maintain context across complex analytical sessions
 - **Safety Filters**: Built-in content filtering for enterprise compliance
 - **Grounding with Google Search**: External knowledge integration for business context
@@ -115,7 +110,7 @@ query_examples = {
 
 ### Backend Stack
 ```
-- **Database Connectors**: PostgreSQL, MySQL, MongoDB, BigQuery, Snowflake
+- **Database Connectors**: PostgreSQL, MySQL, MongoDB
 - **LLM Integration**: Google Gemini Pro/Ultra (Primary), OpenAI GPT-4 (Fallback)
 - **Google AI Platform**: Vertex AI for model deployment and scaling
 - **Vector Database**: Pinecone, Weaviate, or ChromaDB for RAG
