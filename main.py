@@ -14,6 +14,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from database_connector import DatabaseType, DatabaseConfig, DatabaseConnector
 from enhanced_schema_rag import EnhancedDatabaseConnectorWithRAG
 from gemini_helper import GeminiHelper
+from visualization_service import VisualizationService
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -40,6 +41,7 @@ app.add_middleware(
 # Global instances
 connector = EnhancedDatabaseConnectorWithRAG()
 gemini_helper = GeminiHelper()
+viz_service = VisualizationService()
 current_connections = {}
 
 
@@ -406,92 +408,138 @@ async def reset_rag_collection():
 # Query Processing Endpoints
 @app.post("/api/query", response_model=ApiResponse)
 async def ask_question(request: QueryRequest):
-    """Process natural language question"""
+    """Process natural language question with visualization support"""
     try:
-        overview = connector.get_rag_overview()
+        print(f"\n🎨 PROCESSING QUERY WITH VISUALIZATION SUPPORT")
+        print(f"Query: '{request.query}'")
 
+        overview = connector.get_rag_overview()
         if overview["total_documents"] == 0:
-            raise HTTPException(
-                status_code=400,
-                detail="No schemas stored in RAG system. Please discover and store schemas first.",
+            return ApiResponse(
+                success=False,
+                message="No database schemas stored. Please connect and discover schema first.",
             )
 
-        # Determine database
-        if request.database:
-            database = request.database
-            if database not in overview["databases"]:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Database '{database}' not found in RAG system",
-                )
-        else:
-            database = next(iter(overview["databases"]))
+        # Get database and schema context
+        target_database = request.database or next(iter(overview["databases"]))
+        schema_context = connector.get_schema_context(target_database)
+        db_info = overview["databases"][target_database]
+        db_type = DatabaseType(db_info["type"])
 
-        logger.info(f"Processing query: '{request.query}' for database: {database}")
+        print(f"Using database: {target_database} ({db_type.value})")
 
-        # Get schema context
-        schema_context = connector.get_schema_context(database)
+        # First check if this might need visualization using simple detection
+        viz_intent = viz_service.detect_visualization_intent(request.query)
 
-        # Analyze query with Gemini
+        if viz_intent["needs_visualization"]:
+            print(f"🎯 DETECTED VISUALIZATION INTENT - analyzing with Gemini")
+
+            # Use Gemini to get detailed analysis and SQL
+            viz_analysis = await gemini_helper.analyze_visualization_query(
+                request.query, schema_context
+            )
+
+            print(f"📊 Gemini Visualization Analysis:")
+            print(f"  Needs viz: {viz_analysis.get('needs_visualization', False)}")
+            print(f"  Chart type: {viz_analysis.get('chart_type', 'bar')}")
+            print(f"  Has SQL: {bool(viz_analysis.get('sql_query'))}")
+
+            if viz_analysis.get("needs_visualization") and viz_analysis.get(
+                "sql_query"
+            ):
+                print(f"🚀 GENERATING VISUALIZATION")
+
+                try:
+                    if db_type.value not in current_connections:
+                        return ApiResponse(
+                            success=False,
+                            message=f"No active {db_type.value} connection for data visualization",
+                        )
+
+                    sql_query = viz_analysis["sql_query"]
+                    print(f"Executing SQL: {sql_query}")
+
+                    query_results = await connector.execute_query(db_type, sql_query)
+                    print(f"Got {len(query_results)} rows of data")
+
+                    # Generate visualization
+                    chart_base64 = viz_service.generate_chart(
+                        query_results,
+                        viz_analysis.get("chart_type", "bar"),
+                        f"Visualization: {request.query}",
+                    )
+
+                    print(f"✅ Generated {viz_analysis.get('chart_type')} chart")
+
+                    return ApiResponse(
+                        success=True,
+                        message="Visualization generated successfully",
+                        data={
+                            "type": "visualization",
+                            "chart_type": viz_analysis.get("chart_type"),
+                            "image": chart_base64,
+                            "sql": sql_query,
+                            "data_points": len(query_results),
+                            "explanation": viz_analysis.get("explanation", ""),
+                            "results": query_results[:100],  # Include sample data
+                        },
+                    )
+
+                except Exception as e:
+                    print(f"❌ Visualization generation failed: {e}")
+                    return ApiResponse(
+                        success=False,
+                        message=f"Could not generate visualization: {str(e)}",
+                        data={
+                            "type": "error",
+                            "sql": viz_analysis.get("sql_query"),
+                            "explanation": viz_analysis.get("explanation", ""),
+                        },
+                    )
+
+        # Fall back to existing query processing logic
+        print(f"📝 Processing as regular query (no visualization needed)")
+
+        # Your existing logic here - analyze_query, schema search, etc.
         analysis = await gemini_helper.analyze_query(request.query, schema_context)
 
-        if analysis.get("type") == "error":
-            raise HTTPException(status_code=500, detail=analysis["message"])
-
-        if analysis["type"] == "schema":
-            # Handle schema question using RAG
-            results = connector.rag.search_schema(
-                query=request.query, n_results=5, database_filter=database
+        if analysis.get("type") == "schema":
+            rag_results = connector.rag.search_schema(
+                query=request.query, n_results=5, database_filter=target_database
             )
 
             return ApiResponse(
                 success=True,
-                message="Schema query processed successfully",
+                message="Schema information retrieved",
                 data={
                     "type": "schema",
-                    "results": results,
-                    "query": request.query,
-                    "database": database,
+                    "results": rag_results,
+                    "database": target_database,
+                    "explanation": f"Found {len(rag_results)} relevant schema elements",
                 },
             )
-        else:
-            # Handle data question - generate SQL
-            db_info = overview["databases"][database]
-            db_type = DatabaseType(db_info["type"])
 
-            # Check if we have an active connection for this database type
-            if db_type.value not in current_connections:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"No active connection for database type: {db_type.value}",
-                )
-
+        elif analysis.get("type") == "data":
+            # Your existing data query logic
             sql_result = await gemini_helper.generate_sql(
                 request.query, schema_context, db_type.value
             )
 
-            if sql_result.get("type") == "error":
-                raise HTTPException(status_code=500, detail=sql_result["message"])
-
             return ApiResponse(
                 success=True,
-                message="Data query processed successfully",
+                message="SQL query generated",
                 data={
                     "type": "data",
-                    "sql_query": sql_result["query"],
+                    "sql_query": sql_result.get("query"),
                     "explanation": sql_result.get("explanation"),
-                    "warnings": sql_result.get("warnings", []),
-                    "assumptions": sql_result.get("assumptions", []),
-                    "query": request.query,
-                    "database": database,
+                    "database": target_database,
                 },
             )
 
-    except HTTPException:
-        raise
     except Exception as e:
+        print(f"❌ Query processing error: {e}")
         logger.error(f"Query processing error: {e}")
-        raise HTTPException(status_code=500, detail=f"Query processing error: {str(e)}")
+        return ApiResponse(success=False, error=str(e))
 
 
 @app.post("/api/execute-sql", response_model=ApiResponse)

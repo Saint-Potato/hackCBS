@@ -20,6 +20,8 @@ import SendIcon from '@mui/icons-material/Send';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import DeleteIcon from '@mui/icons-material/Delete'; // Add this import
+import ClearIcon from '@mui/icons-material/Clear'; // Add this import
 import { api } from '../services/apiClient.js'; // Add .js extension
 
 const MessageBubble = ({ role, children }) => {
@@ -55,7 +57,7 @@ const CodeBlock = ({ code, language = 'sql' }) => {
   const onCopy = async () => {
     try {
       await navigator.clipboard.writeText(code);
-    } catch {}
+    } catch { }
   };
   return (
     <Box sx={{ position: 'relative', mt: 1, mb: 1 }}>
@@ -157,8 +159,88 @@ const ResultTable = ({ rows }) => {
 };
 
 const ChatMessage = ({ message }) => {
-  const { role, content, sql, sqlResults, explanation, warnings, assumptions } = message;
-  
+  const { role, content, sql, sqlResults, explanation, warnings, assumptions, type, image, chart_type } = message;
+
+  // Handle visualization messages
+  if (role === 'assistant' && type === 'visualization' && image) {
+    return (
+      <MessageBubble role={role}>
+        {/* Natural language response */}
+        <Typography variant="body1" sx={{ mb: 2, color: '#fff' }}>
+          {content}
+        </Typography>
+
+        {/* Visualization Image */}
+        <Box sx={{
+          mb: 2,
+          textAlign: 'center',
+          '& img': {
+            maxWidth: '100%',
+            height: 'auto',
+            borderRadius: 2,
+            border: '1px solid rgba(255,255,255,0.1)',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
+          }
+        }}>
+          <img
+            src={`data:image/png;base64,${image}`}
+            alt={`${chart_type || 'Data'} visualization`}
+            style={{ maxWidth: '100%', height: 'auto' }}
+          />
+        </Box>
+
+        {/* Chart Details in Accordion */}
+        <Accordion
+          defaultExpanded={false}
+          sx={{
+            bgcolor: 'transparent',
+            '&:before': { display: 'none' },
+            boxShadow: 'none',
+          }}
+        >
+          <AccordionSummary
+            expandIcon={<ExpandMoreIcon />}
+            sx={{
+              p: 0,
+              minHeight: 36,
+              '& .MuiAccordionSummary-content': { margin: 0 }
+            }}
+          >
+            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+              View Chart Details
+            </Typography>
+          </AccordionSummary>
+          <AccordionDetails sx={{ p: 0, pt: 1 }}>
+            {sql && (
+              <>
+                <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
+                  SQL Query
+                </Typography>
+                <CodeBlock code={sql} />
+              </>
+            )}
+            {sqlResults && sqlResults.length > 0 && (
+              <>
+                <Typography variant="subtitle2" sx={{ mt: 1, mb: 0.5 }}>
+                  Sample Data ({sqlResults.length} rows)
+                </Typography>
+                <ResultTable rows={sqlResults.slice(0, 10)} />
+              </>
+            )}
+            {explanation && (
+              <>
+                <Typography variant="subtitle2" sx={{ mt: 1, mb: 0.5 }}>
+                  Explanation
+                </Typography>
+                <Typography variant="body2">{explanation}</Typography>
+              </>
+            )}
+          </AccordionDetails>
+        </Accordion>
+      </MessageBubble>
+    );
+  }
+
   // For assistant messages that have SQL or results
   if (role === 'assistant' && (sql || sqlResults)) {
     return (
@@ -191,31 +273,6 @@ const ChatMessage = ({ message }) => {
           </AccordionSummary>
           <AccordionDetails sx={{ p: 0, pt: 1 }}>
             {sqlResults && <ResultTable rows={sqlResults} />}
-          </AccordionDetails>
-        {/* </Accordion> */}
-
-        {/* Query details in separate accordion */}
-        {/* <Accordion */}
-          {/* sx={{
-            bgcolor: 'transparent',
-            '&:before': { display: 'none' },
-            boxShadow: 'none',
-            mt: 1
-          }}
-        > */}
-          {/* <AccordionSummary
-            expandIcon={<ExpandMoreIcon />}
-            sx={{
-              p: 0,
-              minHeight: 36,
-              '& .MuiAccordionSummary-content': { margin: 0 }
-            }}
-          >
-            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-              View Query Details
-            </Typography>
-          </AccordionSummary> */}
-          <AccordionDetails sx={{ p: 0, pt: 1 }}>
             {sql && (
               <>
                 <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
@@ -352,13 +409,29 @@ const ChatInterface = () => {
       }
 
       const data = res.data || {};
+
+      // Handle visualization responses
+      if (data.type === 'visualization') {
+        pushMessage({
+          role: 'assistant',
+          content: `Generated ${data.chart_type || 'chart'} visualization with ${data.data_points || 0} data points.`,
+          type: 'visualization',
+          image: data.image,
+          chart_type: data.chart_type,
+          sql: data.sql,
+          sqlResults: data.results,
+          explanation: data.explanation,
+        });
+        return;
+      }
+
+      // Handle schema responses
       if (data.type === 'schema') {
-        // Process schema results through Gemini
         try {
           const processedRes = await api.processQueryResults({
             query: text,
             results: data.results || [],
-            sql: '' // No SQL for schema queries
+            sql: ''
           });
 
           pushMessage({
@@ -368,22 +441,21 @@ const ChatInterface = () => {
             explanation: data.explanation,
           });
         } catch (processError) {
-          // Fallback to original schema summary if processing fails
           const schemaResponse = renderSchemaSummary(text, selectedDb || data.database, data.results);
           pushMessage({
             role: 'assistant',
             content: schemaResponse,
           });
         }
-      } else if (data.type === 'data') {
+      }
+      // Handle data responses
+      else if (data.type === 'data') {
         try {
-          // Try executing SQL if provided
           const sqlRes = await api.executeSql({
             sql_query: data.sql_query,
             database: selectedDb || data.database,
           });
 
-          // Process results through Gemini
           const processedRes = await api.processQueryResults({
             query: text,
             results: sqlRes.data?.results || [],
@@ -400,7 +472,6 @@ const ChatInterface = () => {
             assumptions: data.assumptions || [],
           });
         } catch (sqlError) {
-          // If SQL execution fails but we have metadata/explanation, use that
           pushMessage({
             role: 'assistant',
             content: data.explanation || 'Based on the database structure:',
@@ -456,9 +527,15 @@ const ChatInterface = () => {
     }
   };
 
+  // Add this function to clear chat
+  const handleClearChat = () => {
+    setMessages([]);
+    localStorage.removeItem('dbdiver_chat');
+  };
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: '100%' }}>
-      {/* Header: database selector */}
+      {/* Header: database selector + clear chat button */}
       <Box
         sx={{
           position: 'sticky',
@@ -489,9 +566,30 @@ const ChatInterface = () => {
             ))}
           </Select>
         </FormControl>
-        <Typography variant="body2" sx={{ opacity: 0.7 }}>
+
+        <Typography variant="body2" sx={{ opacity: 0.7, flex: 1 }}>
           Ask about schema or data. Press Enter to send, Shift+Enter for new line.
         </Typography>
+
+        {/* Clear Chat Button */}
+        <Button
+          variant="outlined"
+          size="small"
+          startIcon={<ClearIcon />}
+          onClick={handleClearChat}
+          disabled={messages.length === 0}
+          sx={{
+            minWidth: 'auto',
+            color: 'text.secondary',
+            borderColor: 'rgba(255,255,255,0.23)',
+            '&:hover': {
+              borderColor: 'rgba(255,255,255,0.5)',
+              bgcolor: 'rgba(255,255,255,0.05)',
+            },
+          }}
+        >
+          Clear Chat
+        </Button>
       </Box>
 
       {/* Messages */}
@@ -528,6 +626,18 @@ const ChatInterface = () => {
             </Typography>
             <Typography variant="body2" sx={{ opacity: 0.8 }}>
               • Top 5 customers by orders.
+            </Typography>
+            <Typography variant="body2" sx={{ opacity: 0.8, fontWeight: 'bold' }}>
+              📊 Visualization examples:
+            </Typography>
+            <Typography variant="body2" sx={{ opacity: 0.8 }}>
+              • Show sales by month as a bar chart
+            </Typography>
+            <Typography variant="body2" sx={{ opacity: 0.8 }}>
+              • Create a pie chart of user categories
+            </Typography>
+            <Typography variant="body2" sx={{ opacity: 0.8 }}>
+              • Plot revenue trends over time
             </Typography>
           </Paper>
         )}
