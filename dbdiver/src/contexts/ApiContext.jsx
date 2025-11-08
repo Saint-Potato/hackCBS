@@ -15,6 +15,9 @@ export const useApi = () => {
 export const ApiProvider = ({ children }) => {
   const [selectedDatabase, setSelectedDatabase] = useState(null);
   const [connectionStatus, setConnectionStatus] = useState('disconnected');
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [connectionError, setConnectionError] = useState(null);
+  const [schemaDiscovered, setSchemaDiscovered] = useState(false);
   const queryClient = useQueryClient();
 
   // Health check query
@@ -39,18 +42,58 @@ export const ApiProvider = ({ children }) => {
     refetchInterval: 10000, // Refresh every 10 seconds
   });
 
-  // Connect database mutation
-  const connectMutation = useMutation({
-    mutationFn: apiService.connectDatabase,
-    onSuccess: () => {
-      queryClient.invalidateQueries(['connections']);
-      setConnectionStatus('connected');
-    },
-    onError: (error) => {
-      console.error('Connection failed:', error);
-      setConnectionStatus('failed');
+  // Connect database function
+  const connectDatabase = async (connectionData) => {
+    setIsConnecting(true);
+    setConnectionError(null);
+
+    try {
+      console.log('🔗 Connecting to database...');
+
+      // Step 1: Connect to database
+      const connectionResult = await apiService.connectDatabase(connectionData);
+
+      if (connectionResult.success) {
+        console.log('✅ Database connected successfully');
+
+        // Step 2: AUTO-DISCOVER SCHEMA
+        console.log('🔍 Auto-discovering schema...');
+
+        try {
+          const schemaResult = await apiService.discoverSchema(connectionData.db_type);
+
+          if (schemaResult.success) {
+            console.log('✅ Schema discovered and stored in RAG system');
+            console.log('Schema result:', schemaResult);
+
+            // Optionally store schema discovery status
+            setSchemaDiscovered(true);
+          } else {
+            console.warn('⚠️ Schema discovery failed:', schemaResult.message);
+            // Still proceed with connection, but warn user
+          }
+
+        } catch (schemaError) {
+          console.error('❌ Schema discovery error:', schemaError);
+          // Don't fail the whole connection for schema issues
+        }
+
+        // Update connections state
+        queryClient.invalidateQueries(['connections']);
+
+        return connectionResult;
+      } else {
+        throw new Error(connectionResult.message || 'Connection failed');
+      }
+
+    } catch (error) {
+      console.error('❌ Database connection error:', error);
+      setConnectionError(error);
+      throw error;
+    } finally {
+      setIsConnecting(false);
     }
-  });
+  };
 
   // Disconnect database mutation
   const disconnectMutation = useMutation({
@@ -90,17 +133,17 @@ export const ApiProvider = ({ children }) => {
     // Loading states
     connectionsLoading,
     ragLoading,
+    isConnecting,
 
     // Actions
     setSelectedDatabase,
-    connectDatabase: connectMutation.mutate,
+    connectDatabase,
     disconnectDatabase: disconnectMutation.mutate,
     discoverSchema: discoverSchemaMutation.mutate,
     askQuestion: askQuestionMutation.mutate,
     executeSQL: executeSQLMutation.mutate,
 
     // Mutation states
-    isConnecting: connectMutation.isPending,
     isDisconnecting: disconnectMutation.isPending,
     isDiscoveringSchema: discoverSchemaMutation.isPending,
     isAskingQuestion: askQuestionMutation.isPending,
@@ -111,9 +154,12 @@ export const ApiProvider = ({ children }) => {
     sqlResult: executeSQLMutation.data,
 
     // Errors
-    connectionError: connectMutation.error,
+    connectionError,
     questionError: askQuestionMutation.error,
     sqlError: executeSQLMutation.error,
+
+    // Schema discovery status
+    schemaDiscovered,
   };
 
   return (
