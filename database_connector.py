@@ -134,7 +134,7 @@ class DatabaseConnector:
             return False
     
     async def discover_schema(self, db_type: DatabaseType) -> Dict[str, Any]:
-        """Discover and extract schema information"""
+        """Discover database schema"""
         try:
             if db_type == DatabaseType.MYSQL:
                 return await self._discover_mysql_schema()
@@ -144,71 +144,81 @@ class DatabaseConnector:
                 return await self._discover_mongodb_schema()
             else:
                 raise ValueError(f"Unsupported database type: {db_type}")
+                
         except Exception as e:
-            logger.error(f"Schema discovery failed for {db_type.value}: {e}")
-            return {}
+            logger.error(f"Error discovering schema: {e}")
+            return None
     
     async def _discover_mysql_schema(self) -> Dict[str, Any]:
         """Discover MySQL schema"""
-        schema = {"tables": {}, "relationships": []}
         pool = self.connections.get("mysql")
-        
         if not pool:
-            return schema
+            raise Exception("MySQL connection not established")
+        
+        schema = {
+            "tables": {},
+            "relationships": []
+        }
         
         async with pool.acquire() as conn:
             async with conn.cursor() as cursor:
-                # Get all tables
-                await cursor.execute("SHOW TABLES")
-                tables = await cursor.fetchall()
-                
-                for (table_name,) in tables:
-                    # Get table structure
-                    await cursor.execute(f"DESCRIBE {table_name}")
-                    columns = await cursor.fetchall()
-                    
-                    schema["tables"][table_name] = {
-                        "columns": [],
-                        "primary_keys": [],
-                        "indexes": []
-                    }
-                    
-                    for column in columns:
-                        column_info = {
-                            "name": column[0],
-                            "type": column[1],
-                            "null": column[2] == "YES",
-                            "key": column[3],
-                            "default": column[4],
-                            "extra": column[5]
+                await cursor.execute("SELECT DATABASE()")
+                database = (await cursor.fetchone())[0]
+
+                await cursor.execute("""
+                    SELECT table_name 
+                    FROM information_schema.tables 
+                    WHERE table_schema = %s
+                """, (database,))
+                tables = [row[0] for row in await cursor.fetchall()]
+
+                for table in tables:
+                    await cursor.execute("""
+                        SELECT column_name, data_type, is_nullable, column_key, column_default, extra
+                        FROM information_schema.columns
+                        WHERE table_schema = %s AND table_name = %s
+                        ORDER BY ordinal_position
+                    """, (database, table))
+                    columns = []
+                    primary_keys = []
+
+                    for col in await cursor.fetchall():
+                        column = {
+                            "name": col[0],
+                            "type": col[1],
+                            "null": col[2] == "YES",
+                            "key": col[3],
+                            "default": col[4],
+                            "extra": col[5]
                         }
-                        schema["tables"][table_name]["columns"].append(column_info)
-                        
-                        if column[3] == "PRI":
-                            schema["tables"][table_name]["primary_keys"].append(column[0])
-                
-                # Get foreign key relationships
+                        columns.append(column)
+                        if col[3] == "PRI":
+                            primary_keys.append(col[0])
+
+                    schema["tables"][table] = {
+                        "columns": columns,
+                        "primary_keys": primary_keys
+                    }
+
                 await cursor.execute("""
                     SELECT 
-                        TABLE_NAME,
-                        COLUMN_NAME,
-                        REFERENCED_TABLE_NAME,
-                        REFERENCED_COLUMN_NAME
-                    FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
-                    WHERE REFERENCED_TABLE_SCHEMA = DATABASE()
-                    AND REFERENCED_TABLE_NAME IS NOT NULL
-                """)
-                
-                relationships = await cursor.fetchall()
-                for rel in relationships:
+                        table_name,
+                        column_name,
+                        referenced_table_name,
+                        referenced_column_name
+                    FROM information_schema.key_column_usage
+                    WHERE table_schema = %s
+                    AND referenced_table_name IS NOT NULL
+                """, (database,))
+
+                for rel in await cursor.fetchall():
                     schema["relationships"].append({
                         "from_table": rel[0],
                         "from_column": rel[1],
                         "to_table": rel[2],
                         "to_column": rel[3]
                     })
-        
-        self.schemas["mysql"] = schema
+
         return schema
     
     async def _discover_postgresql_schema(self) -> Dict[str, Any]:

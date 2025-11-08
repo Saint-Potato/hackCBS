@@ -452,54 +452,55 @@ class EnhancedSchemaRAG:
         """Infer business purpose of MongoDB field from name"""
         return self._infer_column_purpose(field_name)
     
-    async def store_schema(self, schema: Dict[str, Any], db_type: DatabaseType, db_config: Dict[str, str]) -> bool:
-        """Store database schema in ChromaDB"""
+    def get_database_overview(self) -> Dict[str, Any]:
+        """Get overview of stored database schemas"""
         try:
-            logger.info(f"Storing schema for {db_type.value} database: {db_config['database']}")
+            # Get all documents
+            results = self.collection.get(
+                include=["metadatas"]
+            )
             
-            # Create documents from schema
-            documents = self._create_table_documents(schema, db_type, db_config)
+            overview = {
+                "total_documents": len(results["ids"]) if results["ids"] else 0,
+                "databases": {},
+                "document_types": {}
+            }
             
-            if not documents:
-                logger.warning("No documents created from schema")
-                return False
-            
-            # Generate embeddings and prepare for storage
-            ids = []
-            contents = []
-            embeddings = []
-            metadatas = []
-            
-            for doc in documents:
-                # Generate embedding
-                embedding = self._generate_embedding(doc.content)
-                if not embedding:
-                    logger.warning(f"Failed to generate embedding for document {doc.id}")
-                    continue
+            if results["metadatas"]:
+                for metadata in results["metadatas"]:
+                    db_name = metadata.get("database_name", "unknown")
+                    db_type = metadata.get("database_type", "unknown")
+                    doc_type = metadata.get("type", "unknown")
+                    
+                    # Count by database
+                    if db_name not in overview["databases"]:
+                        overview["databases"][db_name] = {
+                            "type": db_type,
+                            "document_count": 0,
+                            "tables": set(),
+                            "collections": set()
+                        }
+                    overview["databases"][db_name]["document_count"] += 1
+                    
+                    # Track tables/collections
+                    if "table_name" in metadata:
+                        overview["databases"][db_name]["tables"].add(metadata["table_name"])
+                    if "collection_name" in metadata:
+                        overview["databases"][db_name]["collections"].add(metadata["collection_name"])
+                    
+                    # Count by document type
+                    overview["document_types"][doc_type] = overview["document_types"].get(doc_type, 0) + 1
                 
-                ids.append(doc.id)
-                contents.append(doc.content)
-                embeddings.append(embedding)
-                metadatas.append(doc.metadata)
+                # Convert sets to lists for JSON serialization
+                for db_info in overview["databases"].values():
+                    db_info["tables"] = list(db_info["tables"])
+                    db_info["collections"] = list(db_info["collections"])
             
-            # Store in ChromaDB (upsert to handle updates)
-            if ids:
-                self.collection.upsert(
-                    ids=ids,
-                    documents=contents,
-                    embeddings=embeddings,
-                    metadatas=metadatas
-                )
-                
-                logger.info(f"Successfully stored {len(ids)} schema documents in ChromaDB")
-                return True
-            else:
-                logger.error("No valid documents to store")
-                return False
-                
+            return overview
+            
         except Exception as e:
-            logger.error(f"Error storing schema in ChromaDB: {e}")
-            return False
+            logger.error(f"Error getting database overview: {e}")
+            return {"total_documents": 0, "databases": {}, "document_types": {}}
     
     def search_schema(self, query: str, n_results: int = 5, database_filter: Optional[str] = None) -> List[Dict[str, Any]]:
         """Enhanced search that handles both metadata and semantic queries"""
@@ -568,95 +569,56 @@ class EnhancedSchemaRAG:
             logger.error(f"Error searching schema: {e}")
             return []
     
-    def get_database_overview(self) -> Dict[str, Any]:
-        """Get overview of stored database schemas"""
+    async def store_schema(self, schema: Dict[str, Any], db_type: DatabaseType, db_config: Dict[str, str]) -> bool:
+        """Store database schema in ChromaDB"""
         try:
-            # Get all documents
-            results = self.collection.get(
-                include=["metadatas"]
-            )
+            logger.info(f"Storing schema for {db_type.value} database: {db_config['database']}")
             
-            overview = {
-                "total_documents": len(results["ids"]) if results["ids"] else 0,
-                "databases": {},
-                "document_types": {}
-            }
+            # Create documents from schema
+            documents = self._create_table_documents(schema, db_type, db_config)
             
-            if results["metadatas"]:
-                for metadata in results["metadatas"]:
-                    db_name = metadata.get("database_name", "unknown")
-                    db_type = metadata.get("database_type", "unknown")
-                    doc_type = metadata.get("type", "unknown")
-                    
-                    # Count by database
-                    if db_name not in overview["databases"]:
-                        overview["databases"][db_name] = {
-                            "type": db_type,
-                            "document_count": 0,
-                            "tables": set(),
-                            "collections": set()
-                        }
-                    overview["databases"][db_name]["document_count"] += 1
-                    
-                    # Track tables/collections
-                    if "table_name" in metadata:
-                        overview["databases"][db_name]["tables"].add(metadata["table_name"])
-                    if "collection_name" in metadata:
-                        overview["databases"][db_name]["collections"].add(metadata["collection_name"])
-                    
-                    # Count by document type
-                    overview["document_types"][doc_type] = overview["document_types"].get(doc_type, 0) + 1
+            if not documents:
+                logger.warning("No documents created from schema")
+                return False
+            
+            # Generate embeddings and prepare for storage
+            ids = []
+            contents = []
+            embeddings = []
+            metadatas = []
+            
+            for doc in documents:
+                # Generate embedding
+                embedding = self._generate_embedding(doc.content)
+                if not embedding:
+                    logger.warning(f"Failed to generate embedding for document {doc.id}")
+                    continue
                 
-                # Convert sets to lists for JSON serialization
-                for db_info in overview["databases"].values():
-                    db_info["tables"] = list(db_info["tables"])
-                    db_info["collections"] = list(db_info["collections"])
+                ids.append(doc.id)
+                contents.append(doc.content)
+                embeddings.append(embedding)
+                metadatas.append(doc.metadata)
             
-            return overview
-            
-        except Exception as e:
-            logger.error(f"Error getting database overview: {e}")
-            return {"total_documents": 0, "databases": {}, "document_types": {}}
-    
-    def delete_database_schema(self, database_name: str) -> bool:
-        """Delete all schema documents for a specific database"""
-        try:
-            # Get all documents for the database
-            results = self.collection.get(
-                where={"database_name": database_name},
-                include=["ids"]
-            )
-            
-            if results["ids"]:
-                # Delete documents
-                self.collection.delete(ids=results["ids"])
-                logger.info(f"Deleted {len(results['ids'])} schema documents for database: {database_name}")
+            # Store in ChromaDB (upsert to handle updates)
+            if ids:
+                self.collection.upsert(
+                    ids=ids,
+                    documents=contents,
+                    embeddings=embeddings,
+                    metadatas=metadatas
+                )
+                
+                logger.info(f"Successfully stored {len(ids)} schema documents in ChromaDB")
                 return True
             else:
-                logger.info(f"No schema documents found for database: {database_name}")
-                return True
+                logger.error("No valid documents to store")
+                return False
                 
         except Exception as e:
-            logger.error(f"Error deleting schema for database {database_name}: {e}")
+            logger.error(f"Error storing schema in ChromaDB: {e}")
             return False
     
-    def reset_collection(self) -> bool:
-        """Reset the entire schema collection"""
-        try:
-            self.client.delete_collection("database_schemas")
-            self.collection = self.client.get_or_create_collection(
-                name="database_schemas",
-                metadata={"description": "Database schema information for RAG"},
-                embedding_function=None
-            )
-            logger.info("Schema collection reset successfully")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Error resetting collection: {e}")
-            return False
-
-# Update the DatabaseConnectorWithRAG to use enhanced version
+    # Update the DatabaseConnectorWithRAG to use enhanced version
 class EnhancedDatabaseConnectorWithRAG(DatabaseConnector):
     """Enhanced DatabaseConnector with improved RAG capabilities"""
     
@@ -665,45 +627,250 @@ class EnhancedDatabaseConnectorWithRAG(DatabaseConnector):
         self.rag = EnhancedSchemaRAG(persist_directory)
         logger.info("Enhanced DatabaseConnector with RAG initialized")
     
-    async def discover_and_store_schema(self, db_type: DatabaseType, config: dict) -> Dict[str, Any]:
-        """Discover schema and store in RAG system"""
+    async def discover_and_store_schema(
+        self,
+        db_type: DatabaseType,
+        config: Dict[str, str]
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Discover the schema using the base connector and persist it in the RAG layer.
+        """
         schema = await self.discover_schema(db_type)
-        
-        if schema:
-            db_config = {
-                "database": config.get("database", "unknown"),
-                "host": config.get("host", "unknown"),
-                "port": str(config.get("port", "unknown"))
-            }
-            
-            success = await self.rag.store_schema(schema, db_type, db_config)
-            if success:
-                logger.info(f"Schema successfully stored in RAG system for {db_type.value}")
-            else:
-                logger.error(f"Failed to store schema in RAG system for {db_type.value}")
-        
+        if not schema:
+            logger.error(f"Schema discovery returned no data for {db_type.value}")
+            return None
+
+        stored = await self.rag.store_schema(schema, db_type, config)
+        if not stored:
+            logger.error(f"Failed to persist schema in RAG for {db_type.value}")
+            return None
+
         return schema
-    
-    def search_schema_context(self, query: str, database_filter: Optional[str] = None) -> str:
-        """Search schema and return context for RAG"""
-        results = self.rag.search_schema(query, n_results=5, database_filter=database_filter)
-        
-        if not results:
-            return "No relevant schema information found."
-        
-        # Handle direct answers
-        if results[0]["metadata"].get("type") == "metadata_answer":
-            return results[0]["content"]
-        
-        # Handle semantic search results
-        context = "Relevant Database Schema Information:\n\n"
-        for i, result in enumerate(results, 1):
-            context += f"{i}. {result['content']}\n"
-            context += f"   Relevance: {result['relevance']}\n"
-            context += f"   Database: {result['metadata'].get('database_name', 'unknown')}\n\n"
-        
-        return context
-    
+
+    def get_schema_context(self, database: str) -> str:
+        """Get schema context for a specific database"""
+        try:
+            overview = self.rag.get_database_overview()
+            if database not in overview["databases"]:
+                return f"Error: Database '{database}' not found in RAG system"
+            
+            # Get all schema documents for the database using proper ChromaDB syntax
+            results = self.rag.collection.get(
+                where={"database_name": {"$eq": database}},
+                include=["documents", "metadatas"]
+            )
+            
+            if not results["documents"]:
+                return f"No schema information found for database '{database}'"
+            
+            # Build context string
+            context = f"Database: {database}\n\n"
+            
+            # Group by document type
+            tables = {}
+            columns = {}
+            relationships = []
+            
+            for doc, metadata in zip(results["documents"], results["metadatas"]):
+                doc_type = metadata.get("type", "unknown")
+                
+                if doc_type == "table":
+                    table_name = metadata.get("table_name")
+                    if table_name:
+                        tables[table_name] = doc
+                elif doc_type == "column":
+                    table_name = metadata.get("table_name")
+                    column_name = metadata.get("column_name")
+                    if table_name and column_name:
+                        if table_name not in columns:
+                            columns[table_name] = []
+                        columns[table_name].append({
+                            "name": column_name,
+                            "type": metadata.get("column_type", "unknown"),
+                            "nullable": metadata.get("is_nullable", True),
+                            "is_primary_key": metadata.get("is_primary_key", False)
+                        })
+                elif doc_type == "relationship":
+                    relationships.append(doc)
+            
+            # Format tables and columns
+            if tables:
+                context += "Tables:\n"
+                for table_name, table_doc in tables.items():
+                    context += f"\n{table_name}:\n"
+                    if table_name in columns:
+                        for col in columns[table_name]:
+                            nullable = "NULL" if col["nullable"] else "NOT NULL"
+                            pk = "PRIMARY KEY" if col["is_primary_key"] else ""
+                            context += f"  - {col['name']} ({col['type']}) {nullable} {pk}\n"
+            
+            # Add relationships
+            if relationships:
+                context += "\nRelationships:\n"
+                for rel in relationships:
+                    context += f"  {rel}\n"
+            
+            return context
+            
+        except Exception as e:
+            logger.error(f"Error getting schema context: {e}")
+            return f"Error retrieving schema context: {e}"
+
     def get_rag_overview(self) -> Dict[str, Any]:
         """Get overview of RAG system"""
         return self.rag.get_database_overview()
+    
+    async def execute_query(self, db_type: DatabaseType, query: str) -> List[Dict[str, Any]]:
+        """Execute a SQL query on the connected database"""
+        try:
+            # Get connection based on type
+            if db_type == DatabaseType.MYSQL:
+                pool = self.connections.get("mysql")
+                if not pool:
+                    raise Exception("MySQL connection not established")
+                    
+                async with pool.acquire() as conn:
+                    async with conn.cursor() as cursor:
+                        await cursor.execute(query)
+                        
+                        # Fetch results
+                        if query.strip().upper().startswith("SELECT"):
+                            results = await cursor.fetchall()
+                            # Convert results to list of dicts
+                            columns = [desc[0] for desc in cursor.description]
+                            return [dict(zip(columns, row)) for row in results]
+                        else:
+                            return []
+                            
+            elif db_type == DatabaseType.POSTGRESQL:
+                pool = self.connections.get("postgresql")
+                if not pool:
+                    raise Exception("PostgreSQL connection not established")
+                    
+                async with pool.acquire() as conn:
+                    async with conn.cursor() as cursor:
+                        await cursor.execute(query)
+                        
+                        # Fetch results
+                        if query.strip().upper().startswith("SELECT"):
+                            results = await cursor.fetchall()
+                            # Convert results to list of dicts
+                            columns = [desc[0] for desc in cursor.description]
+                            return [dict(zip(columns, row)) for row in results]
+                        else:
+                            return []
+            else:
+                raise Exception(f"Query execution not supported for {db_type.value}")
+                
+        except Exception as e:
+            logger.error(f"Error executing query: {e}")
+            raise
+    
+    def get_schema_summary(self, db_type: DatabaseType) -> str:
+        """Get a formatted schema summary for a specific database type"""
+        try:
+            # Get all databases of this type from RAG
+            overview = self.rag.get_database_overview()
+            
+            summary = f"\n📊 {db_type.value.upper()} Schema Summary:\n"
+            summary += "=" * 50 + "\n"
+            
+            # Find databases of this type
+            matching_databases = []
+            for db_name, db_info in overview["databases"].items():
+                if db_info["type"] == db_type.value:
+                    matching_databases.append((db_name, db_info))
+            
+            if not matching_databases:
+                summary += f"No {db_type.value} databases found in RAG system.\n"
+                summary += "Use option 5 to discover and store schema first.\n"
+                return summary
+            
+            for db_name, db_info in matching_databases:
+                summary += f"\n🗄️ Database: {db_name}\n"
+                summary += f"   Documents stored: {db_info['document_count']}\n"
+                
+                if db_info["tables"]:
+                    summary += f"   Tables ({len(db_info['tables'])}): {', '.join(db_info['tables'])}\n"
+                    
+                    # Get detailed table information
+                    for table_name in db_info["tables"]:
+                        try:
+                            # Use proper ChromaDB where syntax with $and operator
+                            table_docs = self.rag.collection.get(
+                                where={
+                                    "$and": [
+                                        {"database_name": {"$eq": db_name}},
+                                        {"type": {"$eq": "table"}},
+                                        {"table_name": {"$eq": table_name}}
+                                    ]
+                                },
+                                include=["metadatas"]
+                            )
+                            
+                            if table_docs["metadatas"]:
+                                table_meta = table_docs["metadatas"][0]
+                                summary += f"     • {table_name}: {table_meta.get('column_count', 0)} columns"
+                                if table_meta.get('has_primary_key'):
+                                    primary_keys = table_meta.get('primary_keys', '')
+                                    if isinstance(primary_keys, str):
+                                        primary_keys = primary_keys.split(',') if primary_keys else []
+                                    summary += f", PK: {', '.join(primary_keys) if primary_keys else 'N/A'}"
+                                summary += "\n"
+                        except Exception as e:
+                            logger.warning(f"Error getting table info for {table_name}: {e}")
+                            summary += f"     • {table_name}: Info unavailable\n"
+                
+                if db_info["collections"]:
+                    summary += f"   Collections ({len(db_info['collections'])}): {', '.join(db_info['collections'])}\n"
+                    
+                    # Get detailed collection information
+                    for collection_name in db_info["collections"]:
+                        try:
+                            collection_docs = self.rag.collection.get(
+                                where={
+                                    "$and": [
+                                        {"database_name": {"$eq": db_name}},
+                                        {"type": {"$eq": "collection"}},
+                                        {"collection_name": {"$eq": collection_name}}
+                                    ]
+                                },
+                                include=["metadatas"]
+                            )
+                            
+                            if collection_docs["metadatas"]:
+                                collection_meta = collection_docs["metadatas"][0]
+                                summary += f"     • {collection_name}: {collection_meta.get('field_count', 0)} fields, "
+                                summary += f"{collection_meta.get('document_count', 0)} documents\n"
+                        except Exception as e:
+                            logger.warning(f"Error getting collection info for {collection_name}: {e}")
+                            summary += f"     • {collection_name}: Info unavailable\n"
+                
+                # Show relationships if any
+                try:
+                    relationship_docs = self.rag.collection.get(
+                        where={
+                            "$and": [
+                                {"database_name": {"$eq": db_name}},
+                                {"type": {"$eq": "relationship"}}
+                            ]
+                        },
+                        include=["metadatas"]
+                    )
+                    
+                    if relationship_docs["metadatas"]:
+                        summary += f"   Foreign Key Relationships ({len(relationship_docs['metadatas'])}):\n"
+                        for rel_meta in relationship_docs["metadatas"]:
+                            from_table = rel_meta.get("from_table", "unknown")
+                            from_col = rel_meta.get("from_column", "unknown")
+                            to_table = rel_meta.get("to_table", "unknown")
+                            to_col = rel_meta.get("to_column", "unknown")
+                            summary += f"     • {from_table}.{from_col} → {to_table}.{to_col}\n"
+                except Exception as e:
+                    logger.warning(f"Error getting relationships for {db_name}: {e}")
+            
+            return summary
+            
+        except Exception as e:
+            logger.error(f"Error getting schema summary: {e}")
+            return f"❌ Error getting schema summary: {e}"

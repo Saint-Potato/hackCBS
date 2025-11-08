@@ -1,9 +1,10 @@
 import asyncio
 import sys
-from typing import Optional
+from typing import Optional, Dict, Any  # Add Dict and Any to imports
 from database_connector import DatabaseType, DatabaseConfig
 from enhanced_schema_rag import EnhancedDatabaseConnectorWithRAG
 import json
+from gemini_helper import GeminiHelper
 
 class EnhancedDatabaseCLI:
     """Enhanced CLI with improved RAG capabilities"""
@@ -11,6 +12,7 @@ class EnhancedDatabaseCLI:
     def __init__(self):
         self.connector = EnhancedDatabaseConnectorWithRAG()
         self.current_connections = {}
+        self.gemini = GeminiHelper()
     
     def display_welcome(self):
         """Display welcome message"""
@@ -167,17 +169,31 @@ class EnhancedDatabaseCLI:
     
     def view_schema_summary(self):
         """View schema summary for connected databases"""
-        if not self.current_connections:
-            print("❌ No active connections. Please connect to a database first.")
+        overview = self.connector.get_rag_overview()
+        
+        if overview["total_documents"] == 0:
+            print("❌ No schemas stored in RAG system. Please discover and store schemas first.")
             return
         
         print("\n📊 Schema Summaries:")
         print("=" * 60)
         
-        for db_type_str in self.current_connections.keys():
-            db_type = DatabaseType(db_type_str)
-            summary = self.connector.get_schema_summary(db_type)
-            print(summary)
+        # Show summary for all database types found in RAG
+        db_types_in_rag = set()
+        for db_info in overview["databases"].values():
+            db_types_in_rag.add(db_info["type"])
+        
+        if not db_types_in_rag:
+            print("No database schemas found in RAG system.")
+            return
+        
+        for db_type_str in db_types_in_rag:
+            try:
+                db_type = DatabaseType(db_type_str)
+                summary = self.connector.get_schema_summary(db_type)
+                print(summary)
+            except ValueError:
+                print(f"❌ Unknown database type: {db_type_str}")
     
     def ask_schema_questions(self):
         """Enhanced natural language schema questions"""
@@ -389,6 +405,230 @@ class EnhancedDatabaseCLI:
         else:
             print("❌ Reset cancelled")
     
+    async def ask_database_question(self):
+        """Ask questions about schema or data using natural language"""
+        print("\n🧠 Ask Questions About Your Database:")
+        print("=" * 50)
+        
+        overview = self.connector.get_rag_overview()
+        if overview["total_documents"] == 0:
+            print("❌ No schemas stored in RAG system. Please discover and store schemas first.")
+            return
+        
+        # First check if we have any active connections
+        if not self.current_connections:
+            print("❌ No active database connections. Please connect first.")
+            return
+        
+        print(f"📊 System Status:")
+        print(f"   • {overview['total_documents']} schema documents indexed")
+        print(f"   • {len(overview['databases'])} database(s): {', '.join(overview['databases'].keys())}")
+        print(f"   • {len(self.current_connections)} active connection(s)")
+        print()
+        
+        print("💡 Example Questions:")
+        print("📋 Schema Questions:")
+        print("   • How many tables are there?")
+        print("   • Show me the structure of the users table")
+        print("   • What foreign keys exist?")
+        print("\n📊 Data Questions:")
+        print("   • Show me the top 5 customers by orders")
+        print("   • What's the average order value?")
+        print("   • Find all orders from last month")
+        print()
+        
+        try:
+            query = input("🤔 Your question: ").strip()
+            if not query:
+                print("❌ Question cannot be empty")
+                return
+            
+            # Get database context
+            if len(overview["databases"]) > 1:
+                print(f"\nAvailable databases: {', '.join(overview['databases'].keys())}")
+                database = input("Which database? ").strip()
+                if not database in overview["databases"]:
+                    print("❌ Invalid database")
+                    return
+            else:
+                database = next(iter(overview["databases"]))
+        
+            print(f"\n🔄 Analyzing question...")
+            
+            # Get schema context for the database
+            schema_context = self.connector.get_schema_context(database)
+            
+            # Analyze query with Gemini
+            analysis = await self.gemini.analyze_query(query, schema_context)
+            
+            if analysis.get("type") == "error":
+                print(f"❌ Error: {analysis['message']}")
+                return
+            
+            if analysis["type"] == "schema":
+                # Handle schema question with RAG
+                await self._handle_schema_question(query, database)
+            else:
+                # Handle data question with Gemini SQL generation
+                await self._handle_data_question(query, database, schema_context)
+                
+        except KeyboardInterrupt:
+            print("\n❌ Question cancelled")
+        except Exception as e:
+            print(f"❌ Error: {e}")
+    
+    async def _handle_schema_question(self, query: str, database: str):
+        """Handle schema-related questions using RAG"""
+        results = self.connector.rag.search_schema(
+            query=query,
+            n_results=5,
+            database_filter=database
+        )
+        
+        if not results:
+            print("❌ No relevant schema information found")
+            return
+        
+        if results[0]["metadata"].get("type") == "metadata_answer":
+            print(f"\n💡 Answer:")
+            print(f"   {results[0]['content']}")
+            
+            if "details" in results[0]:
+                details = results[0]["details"]
+                if "tables" in details:
+                    print(f"\n📋 Tables: {', '.join(details['tables'])}")
+                if "breakdown" in details:
+                    print(f"\n📊 Breakdown by database:")
+                    for db, count in details["breakdown"].items():
+                        print(f"   • {db}: {count} tables")
+        else:
+            print(f"\n🎯 Found {len(results)} relevant results:")
+            for i, result in enumerate(results, 1):
+                self._display_schema_result(i, result)
+    
+    async def _handle_data_question(self, query: str, database: str, schema_context: str):
+        """Handle data-related questions using Gemini"""
+        print("\n🔄 Generating SQL query...")
+        
+        # Find the database connection by mapping database name to connection type
+        db_config = None
+        db_type = None
+        
+        # Get the database type from RAG overview
+        overview = self.connector.get_rag_overview()
+        if database in overview["databases"]:
+            db_type_str = overview["databases"][database]["type"]
+            db_type = DatabaseType(db_type_str)
+            
+            # Find the corresponding connection
+            if db_type_str in self.current_connections:
+                db_config = self.current_connections[db_type_str]
+    
+        if not db_config or not db_type:
+            print("❌ Database connection not found. Please ensure you're connected to the database.")
+            print(f"Available connections: {list(self.current_connections.keys())}")
+            print(f"Target database: {database} (type: {overview['databases'].get(database, {}).get('type', 'unknown')})")
+            return
+        
+        # Generate SQL with Gemini
+        sql_result = await self.gemini.generate_sql(
+            query, 
+            schema_context,
+            db_type.value
+        )
+        
+        if sql_result.get("type") == "error":
+            print(f"❌ Error generating SQL: {sql_result['message']}")
+            return
+        
+        # Display generated SQL
+        print("\n📝 Generated SQL:")
+        print(f"   {sql_result['query']}")
+        
+        if sql_result.get("explanation"):
+            print("\n💡 Explanation:")
+            print(f"   {sql_result['explanation']}")
+        
+        if sql_result.get("warnings"):
+            print("\n⚠️ Warnings:")
+            for warning in sql_result["warnings"]:
+                print(f"   • {warning}")
+    
+        # Ask for confirmation
+        if input("\nExecute this query? (yes/no): ").lower() != "yes":
+            print("❌ Query cancelled")
+            return
+        
+        # Execute query
+        print("\n🔄 Executing query...")
+        try:
+            results = await self.connector.execute_query(
+                db_type,
+                sql_result["query"]
+            )
+            
+            # Display results
+            print("\n📊 Results:")
+            if not results:
+                print("   No results found")
+                return
+            
+            # Display first few rows
+            for i, row in enumerate(results[:5], 1):
+                print(f"   {i}. {row}")
+            if len(results) > 5:
+                print(f"   ... and {len(results) - 5} more rows")
+            
+            # Generate explanation
+            print("\n🔄 Analyzing results...")
+            explanation = await self.gemini.explain_data_results(
+                query, results, schema_context
+            )
+            
+            print("\n💡 Analysis:")
+            print(f"   {explanation}")
+            
+        except Exception as e:
+            print(f"❌ Error executing query: {e}")
+    
+    def _display_schema_result(self, index: int, result: Dict[str, Any]):
+        """Display a single schema search result with formatting"""
+        print(f"\n📋 Result {index} ({result['relevance'].title()} Relevance):")
+        print(f"   Database: {result['metadata'].get('database_name', 'unknown')}")
+        print(f"   Type: {result['metadata'].get('type', 'unknown').title()}")
+        print(f"   Similarity: {result['similarity_score']:.3f}")
+        
+        # Display type-specific information
+        metadata = result['metadata']
+        doc_type = metadata.get('type', 'unknown')
+        
+        if doc_type == 'table':
+            print(f"   Table: {metadata.get('table_name', 'unknown')}")
+            print(f"   Column Count: {metadata.get('column_count', 'unknown')}")
+            if metadata.get('has_primary_key'):
+                print(f"   Primary Keys: {metadata.get('primary_keys', '')}")
+                
+        elif doc_type == 'column':
+            print(f"   Table.Column: {metadata.get('table_name', 'unknown')}.{metadata.get('column_name', 'unknown')}")
+            print(f"   Data Type: {metadata.get('column_type', 'unknown')}")
+            print(f"   Nullable: {'Yes' if metadata.get('is_nullable') else 'No'}")
+            if metadata.get('is_primary_key'):
+                print("   Primary Key: Yes")
+                
+        elif doc_type == 'collection':
+            print(f"   Collection: {metadata.get('collection_name', 'unknown')}")
+            print(f"   Document Count: {metadata.get('document_count', 'unknown')}")
+            
+        elif doc_type == 'relationship':
+            print(f"   From: {metadata.get('from_table', 'unknown')}.{metadata.get('from_column', 'unknown')}")
+            print(f"   To: {metadata.get('to_table', 'unknown')}.{metadata.get('to_column', 'unknown')}")
+        
+        # Display content preview
+        content = result['content']
+        preview = content[:300] + "..." if len(content) > 300 else content
+        print(f"   Content: {preview}")
+    
+    # Update the menu handler
     async def run(self):
         """Run the enhanced CLI application"""
         self.display_welcome()
@@ -413,7 +653,7 @@ class EnhancedDatabaseCLI:
                     elif choice == "6":
                         self.view_schema_summary()
                     elif choice == "7":
-                        self.ask_schema_questions()
+                        await self.ask_database_question()  # Updated to new method
                     elif choice == "8":
                         self.view_rag_overview()
                     elif choice == "9":
