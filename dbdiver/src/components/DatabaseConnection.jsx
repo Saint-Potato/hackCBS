@@ -25,7 +25,6 @@ import {
 import {
   Storage as StorageIcon,
   Add as AddIcon,
-  Science as TestIcon,
   CheckCircle as ConnectedIcon,
   Cancel as DisconnectIcon,
   Computer as ServerIcon,
@@ -35,7 +34,7 @@ import { useApi } from '../contexts/ApiContext';
 const DatabaseConnection = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  
+
   const {
     connections,
     connectDatabase,
@@ -53,26 +52,24 @@ const DatabaseConnection = () => {
     database: '',
   });
 
-  const [testResult, setTestResult] = useState(null);
-
   const dbTypes = [
-    { 
-      value: 'mysql', 
-      label: 'MySQL', 
+    {
+      value: 'mysql',
+      label: 'MySQL',
       defaultPort: 3306,
       color: '#00758f',
       description: 'Popular open-source relational database'
     },
-    { 
-      value: 'postgresql', 
-      label: 'PostgreSQL', 
+    {
+      value: 'postgresql',
+      label: 'PostgreSQL',
       defaultPort: 5432,
       color: '#336791',
       description: 'Advanced open-source relational database'
     },
-    { 
-      value: 'mongodb', 
-      label: 'MongoDB', 
+    {
+      value: 'mongodb',
+      label: 'MongoDB',
       defaultPort: 27017,
       color: '#4db33d',
       description: 'Document-oriented NoSQL database'
@@ -104,13 +101,6 @@ const DatabaseConnection = () => {
     disconnectDatabase(dbType);
   };
 
-  const handleTestConnection = async () => {
-    try {
-      setTestResult({ success: true, message: 'Connection test successful!' });
-    } catch (error) {
-      setTestResult({ success: false, message: 'Connection test failed: ' + error.message });
-    }
-  };
 
   const selectedDbType = dbTypes.find(db => db.value === formData.db_type);
 
@@ -118,19 +108,19 @@ const DatabaseConnection = () => {
     <Container maxWidth="xl" sx={{ py: { xs: 2, md: 4 } }}>
       {/* Header Section */}
       <Box sx={{ mb: 4 }}>
-        <Stack 
-          direction={isMobile ? 'column' : 'row'} 
-          spacing={2} 
+        <Stack
+          direction={isMobile ? 'column' : 'row'}
+          spacing={2}
           alignItems={isMobile ? 'flex-start' : 'center'}
           justifyContent="space-between"
         >
           <Box>
-            <Typography 
-              variant="h3" 
-              gutterBottom 
-              sx={{ 
-                display: 'flex', 
-                alignItems: 'center', 
+            <Typography
+              variant="h3"
+              gutterBottom
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
                 gap: 2,
                 fontSize: { xs: '2rem', md: '3rem' }
               }}
@@ -142,7 +132,7 @@ const DatabaseConnection = () => {
               Connect to your MySQL, PostgreSQL, or MongoDB databases
             </Typography>
           </Box>
-          
+
           <Chip
             icon={<ConnectedIcon />}
             label={`${Object.keys(connections).length} Active Connection${Object.keys(connections).length !== 1 ? 's' : ''}`}
@@ -156,9 +146,9 @@ const DatabaseConnection = () => {
       <Grid container spacing={{ xs: 2, md: 3 }}>
         {/* Connection Form */}
         <Grid item xs={12} lg={6}>
-          <Card 
+          <Card
             elevation={3}
-            sx={{ 
+            sx={{
               height: 'fit-content',
               borderRadius: 2,
               '&:hover': {
@@ -208,10 +198,10 @@ const DatabaseConnection = () => {
                             }}
                           />
                           <Typography>{db.label}</Typography>
-                          <Chip 
-                            label={`Port ${db.defaultPort}`} 
-                            size="small" 
-                            variant="outlined" 
+                          <Chip
+                            label={`Port ${db.defaultPort}`}
+                            size="small"
+                            variant="outlined"
                           />
                         </Stack>
                       </MenuItem>
@@ -279,35 +269,19 @@ const DatabaseConnection = () => {
                   </Alert>
                 )}
 
-                {testResult && (
-                  <Alert 
-                    severity={testResult.success ? 'success' : 'error'} 
-                    sx={{ borderRadius: 2 }}
-                  >
-                    {testResult.message}
-                  </Alert>
-                )}
 
                 {/* Action Buttons */}
-                <Stack 
-                  direction={isMobile ? 'column' : 'row'} 
+                <Stack
+                  direction={isMobile ? 'column' : 'row'}
                   spacing={2}
                 >
-                  <Button
-                    variant="outlined"
-                    startIcon={<TestIcon />}
-                    onClick={handleTestConnection}
-                    disabled={isConnecting}
-                    sx={{ minWidth: { xs: '100%', sm: '120px' } }}
-                  >
-                    Test Connection
-                  </Button>
+
 
                   <Button
                     variant="contained"
                     onClick={handleConnect}
                     disabled={isConnecting || !formData.database}
-                    sx={{ 
+                    sx={{
                       flex: { xs: 'none', sm: 1 },
                       minHeight: 42,
                       fontWeight: 600
@@ -330,9 +304,9 @@ const DatabaseConnection = () => {
 
         {/* Active Connections */}
         <Grid item xs={12} lg={6}>
-          <Card 
+          <Card
             elevation={3}
-            sx={{ 
+            sx={{
               borderRadius: 2,
               '&:hover': {
                 boxShadow: theme.shadows[8]
@@ -372,12 +346,12 @@ const DatabaseConnection = () => {
                     borderRadius: 2,
                   }}
                 >
-                  <StorageIcon 
-                    sx={{ 
-                      fontSize: 48, 
+                  <StorageIcon
+                    sx={{
+                      fontSize: 48,
                       color: 'grey.400',
-                      mb: 2 
-                    }} 
+                      mb: 2
+                    }}
                   />
                   <Typography variant="h6" color="textSecondary" gutterBottom>
                     No Active Connections
@@ -390,7 +364,7 @@ const DatabaseConnection = () => {
                 <Stack spacing={2}>
                   {Object.entries(connections).map(([dbType, conn]) => {
                     const dbTypeInfo = dbTypes.find(db => db.value === conn.type);
-                    
+
                     return (
                       <Paper
                         key={dbType}
@@ -425,38 +399,38 @@ const DatabaseConnection = () => {
                               <Typography variant="h6" sx={{ fontWeight: 600 }}>
                                 {dbTypeInfo?.label || conn.type.toUpperCase()}
                               </Typography>
-                              <Chip 
+                              <Chip
                                 icon={<ConnectedIcon />}
-                                label="Connected" 
-                                size="small" 
+                                label="Connected"
+                                size="small"
                                 color="success"
                                 variant="outlined"
                               />
                             </Stack>
-                            
-                            <Typography 
-                              variant="body2" 
+
+                            <Typography
+                              variant="body2"
                               color="textSecondary"
                               sx={{ fontFamily: 'monospace' }}
                             >
                               📍 {conn.host}:{conn.port}
                             </Typography>
-                            <Typography 
-                              variant="body2" 
+                            <Typography
+                              variant="body2"
                               color="textSecondary"
                               sx={{ fontFamily: 'monospace' }}
                             >
                               🗄️ {conn.database}
                             </Typography>
                           </Box>
-                          
+
                           <Button
                             variant="outlined"
                             color="error"
                             size="small"
                             startIcon={<DisconnectIcon />}
                             onClick={() => handleDisconnect(dbType)}
-                            sx={{ 
+                            sx={{
                               minWidth: { xs: '100%', sm: '120px' },
                               fontWeight: 500
                             }}

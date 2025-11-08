@@ -13,7 +13,7 @@ const MainLayout = () => {
   const renderMainContent = () => {
     switch (activeView) {
       case 'dashboard':
-        return <Dashboard />;
+        return <Dashboard onViewChange={setActiveView} />; // Pass the function
       case 'databases':
         return <DatabaseConnection />;
       case 'chat':
@@ -24,7 +24,13 @@ const MainLayout = () => {
   };
 
   return (
-    <Box sx={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+    <Box
+      sx={{
+        display: 'flex',
+        minHeight: '100vh', // Changed from height: '100vh' to minHeight
+        // Removed overflow: 'hidden' to allow scrolling
+      }}
+    >
       {/* Left Sidebar */}
       <Sidebar activeView={activeView} onViewChange={setActiveView} />
 
@@ -37,7 +43,13 @@ const MainLayout = () => {
       )}
 
       {/* Main Content Area */}
-      <Box sx={{ flex: 1, overflow: 'hidden' }}>
+      <Box
+        sx={{
+          flex: 1,
+          overflow: 'auto', // Changed from 'hidden' to 'auto' to enable scrolling
+          maxHeight: '100vh', // Add max height to prevent infinite growth
+        }}
+      >
         {renderMainContent()}
       </Box>
     </Box>

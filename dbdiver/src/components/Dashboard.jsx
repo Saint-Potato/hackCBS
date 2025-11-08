@@ -33,13 +33,11 @@ import {
   Refresh as RefreshIcon,
 } from '@mui/icons-material';
 import { useApi } from '../contexts/ApiContext';
-import { useNavigate } from 'react-router-dom';
 
-const Dashboard = () => {
+const Dashboard = ({ onViewChange }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const { connections, ragOverview, healthData } = useApi();
-  const navigate = useNavigate();
 
   const connectionCount = Object.keys(connections).length;
   const documentCount = ragOverview.total_documents || 0;
@@ -64,9 +62,9 @@ const Dashboard = () => {
   };
 
   const StatCard = ({ title, value, subtitle, icon, color, action }) => (
-    <Card 
+    <Card
       elevation={3}
-      sx={{ 
+      sx={{
         borderRadius: 3,
         height: '100%',
         background: `linear-gradient(135deg, ${theme.palette[color].main}15, ${theme.palette[color].main}05)`,
@@ -89,7 +87,7 @@ const Dashboard = () => {
           >
             {icon}
           </Avatar>
-          
+
           <Box sx={{ flex: 1 }}>
             <Typography variant="h3" sx={{ fontWeight: 700, mb: 0.5 }}>
               {value}
@@ -100,7 +98,7 @@ const Dashboard = () => {
             <Typography variant="body2" color="textSecondary">
               {subtitle}
             </Typography>
-            
+
             {action && (
               <Button
                 variant="outlined"
@@ -122,17 +120,17 @@ const Dashboard = () => {
     <Container maxWidth="xl" sx={{ py: { xs: 2, md: 4 } }}>
       {/* Header */}
       <Box sx={{ mb: 4 }}>
-        <Stack 
-          direction={isMobile ? 'column' : 'row'} 
-          spacing={2} 
+        <Stack
+          direction={isMobile ? 'column' : 'row'}
+          spacing={2}
           alignItems={isMobile ? 'flex-start' : 'center'}
           justifyContent="space-between"
         >
           <Box>
-            <Typography 
-              variant="h2" 
-              gutterBottom 
-              sx={{ 
+            <Typography
+              variant="h2"
+              gutterBottom
+              sx={{
                 fontWeight: 800,
                 fontSize: { xs: '2.5rem', md: '3.75rem' },
                 background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
@@ -146,11 +144,11 @@ const Dashboard = () => {
               AI-Driven Database RAG & Analytics Platform
             </Typography>
           </Box>
-          
+
           <Stack direction="row" spacing={1}>
-            <IconButton 
+            <IconButton
               onClick={() => window.location.reload()}
-              sx={{ 
+              sx={{
                 backgroundColor: theme.palette.action.hover,
                 '&:hover': { backgroundColor: theme.palette.action.selected }
               }}
@@ -182,7 +180,7 @@ const Dashboard = () => {
             color="primary"
             action={connectionCount === 0 ? {
               label: "Connect Now",
-              onClick: () => navigate('/connections')
+              onClick: () => onViewChange('databases')
             } : null}
           />
         </Grid>
@@ -201,9 +199,9 @@ const Dashboard = () => {
       <Grid container spacing={{ xs: 2, md: 3 }}>
         {/* Quick Actions */}
         <Grid item xs={12} md={6}>
-          <Card 
+          <Card
             elevation={3}
-            sx={{ 
+            sx={{
               borderRadius: 3,
               height: '100%',
               '&:hover': { boxShadow: theme.shadows[8] }
@@ -213,24 +211,24 @@ const Dashboard = () => {
               <Typography variant="h5" gutterBottom sx={{ fontWeight: 600, mb: 3 }}>
                 🚀 Quick Actions
               </Typography>
-              
+
               <Stack spacing={2}>
                 {[
                   {
                     icon: <StorageIcon />,
                     primary: "Connect to Database",
-                    secondary: connectionCount > 0 ? 
-                      `${connectionCount} database${connectionCount !== 1 ? 's' : ''} connected` : 
+                    secondary: connectionCount > 0 ?
+                      `${connectionCount} database${connectionCount !== 1 ? 's' : ''} connected` :
                       "Connect to MySQL, PostgreSQL, or MongoDB",
-                    action: () => navigate('/connections'),
+                    action: () => onViewChange('databases'),
                     disabled: false,
                     color: connectionCount > 0 ? 'success' : 'primary'
                   },
                   {
                     icon: <SchemaIcon />,
                     primary: "Discover Schema",
-                    secondary: documentCount > 0 ? 
-                      `${documentCount} documents indexed` : 
+                    secondary: documentCount > 0 ?
+                      `${documentCount} documents indexed` :
                       "Index your database schema for RAG",
                     action: null,
                     disabled: connectionCount === 0,
@@ -239,10 +237,10 @@ const Dashboard = () => {
                   {
                     icon: <BrainIcon />,
                     primary: "Ask Questions",
-                    secondary: documentCount > 0 ? 
-                      "Query your data with natural language" : 
+                    secondary: documentCount > 0 ?
+                      "Query your data with natural language" :
                       "Requires schema discovery first",
-                    action: () => navigate('/query'),
+                    action: () => onViewChange('chat'),
                     disabled: documentCount === 0,
                     color: documentCount > 0 ? 'primary' : 'action'
                   }
@@ -291,9 +289,9 @@ const Dashboard = () => {
 
         {/* Database Overview */}
         <Grid item xs={12} md={6}>
-          <Card 
+          <Card
             elevation={3}
-            sx={{ 
+            sx={{
               borderRadius: 3,
               height: '100%',
               '&:hover': { boxShadow: theme.shadows[8] }
@@ -303,7 +301,7 @@ const Dashboard = () => {
               <Typography variant="h5" gutterBottom sx={{ fontWeight: 600, mb: 3 }}>
                 📊 Database Overview
               </Typography>
-              
+
               {databaseCount === 0 ? (
                 <Paper
                   variant="outlined"
@@ -351,10 +349,10 @@ const Dashboard = () => {
                             {dbName}
                           </Typography>
                           <Stack direction="row" spacing={1} alignItems="center">
-                            <Chip 
-                              label={dbInfo.type} 
-                              size="small" 
-                              color="primary" 
+                            <Chip
+                              label={dbInfo.type}
+                              size="small"
+                              color="primary"
                               variant="outlined"
                             />
                             <Typography variant="body2" color="textSecondary">
@@ -380,9 +378,9 @@ const Dashboard = () => {
         {/* Getting Started Guide */}
         {connectionCount === 0 && (
           <Grid item xs={12}>
-            <Card 
+            <Card
               elevation={3}
-              sx={{ 
+              sx={{
                 borderRadius: 3,
                 background: `linear-gradient(135deg, ${theme.palette.primary.main}10, ${theme.palette.secondary.main}10)`,
                 border: `1px solid ${theme.palette.primary.main}20`,
@@ -395,7 +393,7 @@ const Dashboard = () => {
                 <Typography variant="body1" paragraph sx={{ fontSize: '1.1rem' }}>
                   Get started with AI-powered database analytics in just a few simple steps:
                 </Typography>
-                
+
                 <Grid container spacing={3} sx={{ mt: 2 }}>
                   {[
                     {
@@ -405,7 +403,7 @@ const Dashboard = () => {
                       color: theme.palette.primary.main,
                     },
                     {
-                      step: "2", 
+                      step: "2",
                       title: "Discover your schema",
                       description: "Let the system analyze and index your database structure",
                       color: theme.palette.secondary.main,
@@ -450,13 +448,13 @@ const Dashboard = () => {
                     </Grid>
                   ))}
                 </Grid>
-                
+
                 <Box sx={{ textAlign: 'center', mt: 4 }}>
                   <Button
                     variant="contained"
                     size="large"
-                    onClick={() => navigate('/connections')}
-                    sx={{ 
+                    onClick={() => onViewChange('databases')}
+                    sx={{
                       px: 4,
                       py: 1.5,
                       fontSize: '1.1rem',

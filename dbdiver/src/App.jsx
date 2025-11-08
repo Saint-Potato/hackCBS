@@ -1,9 +1,11 @@
 import React from 'react';
 import { ThemeProvider, CssBaseline } from '@mui/material';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { ApiProvider } from './contexts/ApiContext';
 import { darkTheme } from './theme/darkTheme';
 import MainLayout from './components/MainLayout';
+import Dashboard from './components/Dashboard'; // Assuming Dashboard is a component
 
 // Create query client
 const queryClient = new QueryClient({
@@ -17,14 +19,21 @@ const queryClient = new QueryClient({
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider theme={darkTheme}>
-        <CssBaseline />
-        <ApiProvider>
-          <MainLayout />
-        </ApiProvider>
-      </ThemeProvider>
-    </QueryClientProvider>
+    <Router>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider theme={darkTheme}>
+          <CssBaseline />
+          <ApiProvider>
+            <MainLayout>
+              <Routes>
+                <Route path="/" element={<Dashboard />} />
+                {/* Other routes */}
+              </Routes>
+            </MainLayout>
+          </ApiProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
+    </Router>
   );
 }
 
