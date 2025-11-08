@@ -47,4 +47,15 @@ export const api = {
   async getConnections() {
     return jsonFetch('/api/connections');
   },
+
+  async processQueryResults({ query, results, sql }) {
+    return jsonFetch('/api/process-results', {
+      method: 'POST',
+      body: {
+        user_query: query,
+        results: results,
+        sql_query: sql
+      }
+    });
+  }
 };

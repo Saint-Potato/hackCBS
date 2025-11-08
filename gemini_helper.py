@@ -212,3 +212,21 @@ class GeminiHelper:
             "warnings": [],
             "raw_response": response
         }
+    
+    async def generate_natural_response(self, context: str) -> Dict[str, Any]:
+        """Generate a natural language response based on context"""
+        try:
+            response = self.model.generate_content(context)
+            
+            return {
+                "text": response.text,
+                "metadata": {
+                    "model": "gemini-pro",
+                    "safety_ratings": [r.to_dict() for r in response.safety_ratings] if hasattr(response, 'safety_ratings') else []
+                }
+            }
+        except Exception as e:
+            return {
+                "text": "I found some results but couldn't generate a natural response. Here are the raw results instead.",
+                "error": str(e)
+            }

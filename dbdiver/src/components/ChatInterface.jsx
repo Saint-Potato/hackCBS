@@ -158,23 +158,23 @@ const ResultTable = ({ rows }) => {
 
 const ChatMessage = ({ message }) => {
   const { role, content, sql, sqlResults, explanation, warnings, assumptions } = message;
-
+  
   // For assistant messages that have SQL or results
   if (role === 'assistant' && (sql || sqlResults)) {
     return (
       <MessageBubble role={role}>
-        {/* Main content/results first */}
-        {sqlResults && (
-          <ResultTable rows={sqlResults} />
-        )}
+        {/* Natural language response first */}
+        <Typography variant="body1" sx={{ mb: 2, color: '#fff' }}>
+          {content}
+        </Typography>
 
-        {/* Detailed information in accordion */}
+        {/* Results table in accordion */}
         <Accordion
+          defaultExpanded={false}
           sx={{
             bgcolor: 'transparent',
-            '&:before': { display: 'none' }, // Remove divider
+            '&:before': { display: 'none' },
             boxShadow: 'none',
-            mt: sqlResults ? 1 : 0
           }}
         >
           <AccordionSummary
@@ -186,9 +186,35 @@ const ChatMessage = ({ message }) => {
             }}
           >
             <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-              View Query Details
+              View Details
             </Typography>
           </AccordionSummary>
+          <AccordionDetails sx={{ p: 0, pt: 1 }}>
+            {sqlResults && <ResultTable rows={sqlResults} />}
+          </AccordionDetails>
+        {/* </Accordion> */}
+
+        {/* Query details in separate accordion */}
+        {/* <Accordion */}
+          {/* sx={{
+            bgcolor: 'transparent',
+            '&:before': { display: 'none' },
+            boxShadow: 'none',
+            mt: 1
+          }}
+        > */}
+          {/* <AccordionSummary
+            expandIcon={<ExpandMoreIcon />}
+            sx={{
+              p: 0,
+              minHeight: 36,
+              '& .MuiAccordionSummary-content': { margin: 0 }
+            }}
+          >
+            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+              View Query Details
+            </Typography>
+          </AccordionSummary> */}
           <AccordionDetails sx={{ p: 0, pt: 1 }}>
             {sql && (
               <>
@@ -327,19 +353,36 @@ const ChatInterface = () => {
 
       const data = res.data || {};
       if (data.type === 'schema') {
+        // Schema questions remain the same
         pushMessage({
           role: 'assistant',
           content: renderSchemaSummary(text, selectedDb || data.database, results),
         });
       } else if (data.type === 'data') {
-        // Auto-execute the SQL query
+        // Auto-execute SQL and process results with Gemini
         const sqlRes = await api.executeSql({
           sql_query: data.sql_query,
           database: selectedDb || data.database,
         });
 
+        if (!sqlRes?.success) {
+          pushMessage({
+            role: 'assistant',
+            content: 'Failed to execute query.',
+          });
+          return;
+        }
+
+        // Process results through Gemini
+        const processedRes = await api.processQueryResults({
+          query: text,
+          results: sqlRes.data?.results || [],
+          sql: data.sql_query
+        });
+
         pushMessage({
           role: 'assistant',
+          content: processedRes.data?.natural_response || 'Here are your results:',
           sql: data.sql_query,
           sqlResults: sqlRes.data?.results || [],
           explanation: data.explanation,

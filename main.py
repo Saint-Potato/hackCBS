@@ -560,6 +560,40 @@ async def internal_error_handler(request, exc):
         }
     )
 
+class ProcessResultsRequest(BaseModel):
+    user_query: str
+    results: List[Any]
+    sql_query: str
+
+@app.post("/api/process-results", response_model=ApiResponse)
+async def process_query_results(request: ProcessResultsRequest):
+    """Process query results into natural language"""
+    try:
+        # Create a prompt for Gemini
+        context = f"""
+        Original question: {request.user_query}
+        SQL Query used: {request.sql_query}
+        Results: {request.results[:5]}  # Limiting to first 5 for context
+        
+        Convert these results into a natural language response that directly answers 
+        the original question. Be concise but informative. Include key numbers and insights.
+        """
+        
+        # Get natural response from Gemini
+        response = await gemini_helper.generate_natural_response(context)
+        
+        return ApiResponse(
+            success=True,
+            message="Results processed successfully",
+            data={
+                "natural_response": response["text"],
+                "metadata": response.get("metadata", {})
+            }
+        )
+    except Exception as e:
+        logger.error(f"Result processing error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
