@@ -12,10 +12,14 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
 } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { api } from '../services/apiClient.js'; // Add .js extension
 
 const MessageBubble = ({ role, children }) => {
@@ -26,12 +30,14 @@ const MessageBubble = ({ role, children }) => {
         display: 'flex',
         justifyContent: isUser ? 'flex-end' : 'flex-start',
         mb: 1.5,
+        maxWidth: '85%',
+        marginLeft: isUser ? 'auto' : '0',
       }}
     >
       <Paper
         elevation={0}
         sx={{
-          maxWidth: 'min(800px, 90%)',
+          width: '100%',
           p: 1.5,
           borderRadius: 2,
           bgcolor: isUser ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.03)',
@@ -150,6 +156,100 @@ const ResultTable = ({ rows }) => {
   );
 };
 
+const ChatMessage = ({ message }) => {
+  const { role, content, sql, sqlResults, explanation, warnings, assumptions } = message;
+
+  // For assistant messages that have SQL or results
+  if (role === 'assistant' && (sql || sqlResults)) {
+    return (
+      <MessageBubble role={role}>
+        {/* Main content/results first */}
+        {sqlResults && (
+          <ResultTable rows={sqlResults} />
+        )}
+
+        {/* Detailed information in accordion */}
+        <Accordion
+          sx={{
+            bgcolor: 'transparent',
+            '&:before': { display: 'none' }, // Remove divider
+            boxShadow: 'none',
+            mt: sqlResults ? 1 : 0
+          }}
+        >
+          <AccordionSummary
+            expandIcon={<ExpandMoreIcon />}
+            sx={{
+              p: 0,
+              minHeight: 36,
+              '& .MuiAccordionSummary-content': { margin: 0 }
+            }}
+          >
+            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+              View Query Details
+            </Typography>
+          </AccordionSummary>
+          <AccordionDetails sx={{ p: 0, pt: 1 }}>
+            {sql && (
+              <>
+                <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
+                  SQL Query
+                </Typography>
+                <CodeBlock code={sql} />
+              </>
+            )}
+            {explanation && (
+              <>
+                <Typography variant="subtitle2" sx={{ mt: 1, mb: 0.5 }}>
+                  Explanation
+                </Typography>
+                <Typography variant="body2">{explanation}</Typography>
+              </>
+            )}
+            {warnings?.length > 0 && (
+              <>
+                <Typography variant="subtitle2" sx={{ mt: 1, mb: 0.5 }}>
+                  Warnings
+                </Typography>
+                <ul style={{ margin: '4px 0', paddingLeft: 20 }}>
+                  {warnings.map((w, i) => (
+                    <li key={i}>
+                      <Typography variant="body2">{w}</Typography>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+            {assumptions?.length > 0 && (
+              <>
+                <Typography variant="subtitle2" sx={{ mt: 1, mb: 0.5 }}>
+                  Assumptions
+                </Typography>
+                <ul style={{ margin: '4px 0', paddingLeft: 20 }}>
+                  {assumptions.map((a, i) => (
+                    <li key={i}>
+                      <Typography variant="body2">{a}</Typography>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </AccordionDetails>
+        </Accordion>
+      </MessageBubble>
+    );
+  }
+
+  // Simple text message for user or other assistant messages
+  return (
+    <MessageBubble role={role}>
+      <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+        {content}
+      </Typography>
+    </MessageBubble>
+  );
+};
+
 const ChatInterface = () => {
   const [messages, setMessages] = useState(() => {
     // Restore last session
@@ -227,28 +327,24 @@ const ChatInterface = () => {
 
       const data = res.data || {};
       if (data.type === 'schema') {
-        // Render concise list of relevant schema results
-        const results = data.results || [];
         pushMessage({
           role: 'assistant',
           content: renderSchemaSummary(text, selectedDb || data.database, results),
         });
       } else if (data.type === 'data') {
-        // Show proposed SQL and explanation, allow execution
+        // Auto-execute the SQL query
+        const sqlRes = await api.executeSql({
+          sql_query: data.sql_query,
+          database: selectedDb || data.database,
+        });
+
         pushMessage({
           role: 'assistant',
-          content: `I generated a SQL query for your request.`,
           sql: data.sql_query,
-          database: selectedDb || data.database,
+          sqlResults: sqlRes.data?.results || [],
           explanation: data.explanation,
           warnings: data.warnings || [],
           assumptions: data.assumptions || [],
-          canExecute: true,
-        });
-      } else {
-        pushMessage({
-          role: 'assistant',
-          content: res?.message || 'No data returned.',
         });
       }
     } catch (e) {
@@ -374,97 +470,7 @@ const ChatInterface = () => {
         )}
 
         {messages.map((m) => (
-          <MessageBubble key={m.id} role={m.role}>
-            <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
-              {m.content}
-            </Typography>
-
-            {/* Assistant details */}
-            {m.sql && (
-              <>
-                <Divider sx={{ my: 1.25 }} />
-                <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
-                  Proposed SQL
-                </Typography>
-                <CodeBlock code={m.sql} language="sql" />
-                {m.explanation && (
-                  <>
-                    <Typography variant="subtitle2" sx={{ mt: 1 }}>
-                      Explanation
-                    </Typography>
-                    <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
-                      {m.explanation}
-                    </Typography>
-                  </>
-                )}
-                {m.warnings && m.warnings.length > 0 && (
-                  <>
-                    <Typography variant="subtitle2" sx={{ mt: 1 }}>
-                      Warnings
-                    </Typography>
-                    <ul style={{ marginTop: 4, marginBottom: 0 }}>
-                      {m.warnings.map((w, i) => (
-                        <li key={i}>
-                          <Typography variant="body2">{w}</Typography>
-                        </li>
-                      ))}
-                    </ul>
-                  </>
-                )}
-                {m.assumptions && m.assumptions.length > 0 && (
-                  <>
-                    <Typography variant="subtitle2" sx={{ mt: 1 }}>
-                      Assumptions
-                    </Typography>
-                    <ul style={{ marginTop: 4, marginBottom: 0 }}>
-                      {m.assumptions.map((a, i) => (
-                        <li key={i}>
-                          <Typography variant="body2">{a}</Typography>
-                        </li>
-                      ))}
-                    </ul>
-                  </>
-                )}
-                {m.canExecute && (
-                  <Box sx={{ mt: 1 }}>
-                    <Button
-                      size="small"
-                      variant="contained"
-                      startIcon={<PlayArrowIcon />}
-                      disabled={!!executingSqlId}
-                      onClick={() => handleExecuteSql(m.id, m.sql, m.database)}
-                    >
-                      {executingSqlId === m.id ? 'Executing...' : 'Execute SQL'}
-                    </Button>
-                  </Box>
-                )}
-              </>
-            )}
-
-            {/* SQL execution results */}
-            {Array.isArray(m.sqlResults) && (
-              <>
-                <Divider sx={{ my: 1.25 }} />
-                <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
-                  Results
-                </Typography>
-                <ResultTable rows={m.sqlResults} />
-                {m.count != null && (
-                  <Typography variant="caption" sx={{ opacity: 0.7, display: 'block', mt: 0.75 }}>
-                    Rows: {m.count}
-                  </Typography>
-                )}
-                {m.sqlQuery && (
-                  <>
-                    <Typography variant="subtitle2" sx={{ mt: 1 }}>
-                      Executed SQL
-                    </Typography>
-                    <CodeBlock code={m.sqlQuery} language="sql" />
-                  </>
-                )}
-              </>
-            )}
-          </MessageBubble>
+          <ChatMessage key={m.id} message={m} />
         ))}
       </Box>
 
