@@ -31,6 +31,11 @@ import {
   Speed as SpeedIcon,
   ArrowForward as ArrowIcon,
   Refresh as RefreshIcon,
+  Dashboard as DashboardIcon,
+  RocketLaunch as RocketIcon,
+  FlashOn as QuickIcon,
+  BarChart as AnalyticsIcon,
+  Flag as TargetIcon,
 } from '@mui/icons-material';
 import { useApi } from '../contexts/ApiContext';
 
@@ -127,19 +132,27 @@ const Dashboard = ({ onViewChange }) => {
           justifyContent="space-between"
         >
           <Box>
-            <Typography
-              variant="h2"
-              gutterBottom
-              sx={{
-                fontWeight: 800,
-                fontSize: { xs: '2.5rem', md: '3.75rem' },
-                background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-              }}
-            >
-              🚀 Dashboard
-            </Typography>
+            <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 1 }}>
+              <Avatar
+                sx={{
+                  backgroundColor: theme.palette.primary.main,
+                  width: 48,
+                  height: 48,
+                }}
+              >
+                <DashboardIcon />
+              </Avatar>
+              <Typography
+                variant="h2"
+                sx={{
+                  fontWeight: 800,
+                  fontSize: { xs: '2.5rem', md: '3.75rem' },
+                  color: theme.palette.text.primary, // Simple color instead of gradient
+                }}
+              >
+                Dashboard
+              </Typography>
+            </Stack>
             <Typography variant="h6" color="textSecondary">
               AI-Driven Database RAG & Analytics Platform
             </Typography>
@@ -164,7 +177,7 @@ const Dashboard = ({ onViewChange }) => {
         <Grid item xs={12} sm={6} md={4}>
           <StatCard
             title="System Health"
-            value={healthData?.status === 'healthy' ? '✅' : '❌'}
+            value={healthData?.status === 'healthy' ? 'Healthy' : 'Issues'}
             subtitle="Backend API Status"
             icon={getStatusIcon(healthData?.status)}
             color={getStatusColor(healthData?.status)}
@@ -208,9 +221,14 @@ const Dashboard = ({ onViewChange }) => {
             }}
           >
             <CardContent sx={{ p: 3 }}>
-              <Typography variant="h5" gutterBottom sx={{ fontWeight: 600, mb: 3 }}>
-                🚀 Quick Actions
-              </Typography>
+              <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 3 }}>
+                <Avatar sx={{ backgroundColor: theme.palette.secondary.main }}>
+                  <QuickIcon />
+                </Avatar>
+                <Typography variant="h5" sx={{ fontWeight: 600 }}>
+                  Quick Actions
+                </Typography>
+              </Stack>
 
               <Stack spacing={2}>
                 {[
@@ -298,9 +316,14 @@ const Dashboard = ({ onViewChange }) => {
             }}
           >
             <CardContent sx={{ p: 3 }}>
-              <Typography variant="h5" gutterBottom sx={{ fontWeight: 600, mb: 3 }}>
-                📊 Database Overview
-              </Typography>
+              <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 3 }}>
+                <Avatar sx={{ backgroundColor: theme.palette.info.main }}>
+                  <AnalyticsIcon />
+                </Avatar>
+                <Typography variant="h5" sx={{ fontWeight: 600 }}>
+                  Database Overview
+                </Typography>
+              </Stack>
 
               {databaseCount === 0 ? (
                 <Paper
@@ -387,9 +410,20 @@ const Dashboard = ({ onViewChange }) => {
               }}
             >
               <CardContent sx={{ p: 4 }}>
-                <Typography variant="h4" gutterBottom sx={{ fontWeight: 600 }}>
-                  🎯 Welcome to DB RAG Analytics!
-                </Typography>
+                <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 2 }}>
+                  <Avatar
+                    sx={{
+                      backgroundColor: theme.palette.primary.main,
+                      width: 48,
+                      height: 48,
+                    }}
+                  >
+                    <TargetIcon />
+                  </Avatar>
+                  <Typography variant="h4" sx={{ fontWeight: 600 }}>
+                    Welcome to DB RAG Analytics!
+                  </Typography>
+                </Stack>
                 <Typography variant="body1" paragraph sx={{ fontSize: '1.1rem' }}>
                   Get started with AI-powered database analytics in just a few simple steps:
                 </Typography>
@@ -461,6 +495,7 @@ const Dashboard = ({ onViewChange }) => {
                       fontWeight: 600,
                       borderRadius: 2,
                     }}
+                    startIcon={<RocketIcon />}
                     endIcon={<ArrowIcon />}
                   >
                     Get Started Now
