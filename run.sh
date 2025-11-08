@@ -1,13 +1,15 @@
 #!/bin/bash
 
-echo "🚀 Setting up AI-Driven DB RAG & Analytics - Phase 1"
-echo "=================================================="
+echo "🚀 Starting DB RAG Analytics Backend Server..."
+echo "=============================================="
 
-# Check Python version
-python_version=$(python3 --version 2>&1)
-echo "Python version: $python_version"
+# Check if we're in the right directory
+if [ ! -f "main.py" ]; then
+    echo "❌ Error: main.py not found. Please run this script from the project root directory."
+    exit 1
+fi
 
-# Create virtual environment if it doesn't exist
+# Check if virtual environment exists
 if [ ! -d "venv" ]; then
     echo "📦 Creating virtual environment..."
     python3 -m venv venv
@@ -17,20 +19,38 @@ fi
 echo "🔧 Activating virtual environment..."
 source venv/bin/activate
 
-# Upgrade pip
-echo "⬆️ Upgrading pip..."
+# Install/upgrade dependencies
+echo "📦 Installing/upgrading dependencies..."
 pip install --upgrade pip
-
-# Install requirements
-echo "📥 Installing requirements..."
 pip install -r requirements.txt
 
+# Check if .env file exists
+if [ ! -f ".env" ]; then
+    echo "⚠️  Warning: .env file not found. Please create one with your API keys."
+    echo "   See .env.example for the required variables."
+fi
+
+# Display system info
 echo ""
-echo "✅ Setup complete!"
+echo "🔍 System Information:"
+echo "   Python version: $(python --version)"
+echo "   FastAPI: $(pip show fastapi | grep Version | cut -d' ' -f2)"
+echo "   Working directory: $(pwd)"
 echo ""
-echo "To get started:"
-echo "1. Activate the virtual environment: source venv/bin/activate"
-echo "2. Run the CLI app: python cli_app.py"
-echo "3. Or test the connector directly: python database_connector.py"
+
+# Start the server
+echo "🌟 Starting FastAPI server..."
+echo "📚 API Documentation: http://localhost:8000/docs"
+echo "🌐 Health Check: http://localhost:8000/api/health"
+echo "🔄 Auto-reload enabled for development"
 echo ""
-echo "Make sure you have your database servers running!"
+echo "Press Ctrl+C to stop the server"
+echo ""
+
+# Use uvicorn directly with the import string for proper reload
+uvicorn main:app \
+    --host 0.0.0.0 \
+    --port 8000 \
+    --reload \
+    --log-level info \
+    --access-log
