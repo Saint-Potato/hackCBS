@@ -353,42 +353,46 @@ const ChatInterface = () => {
 
       const data = res.data || {};
       if (data.type === 'schema') {
-        // Schema questions remain the same
+        // For schema questions, format response directly from the query results
+        const schemaResponse = renderSchemaSummary(text, selectedDb || data.database, data.results);
         pushMessage({
           role: 'assistant',
-          content: renderSchemaSummary(text, selectedDb || data.database, results),
+          content: schemaResponse,
         });
       } else if (data.type === 'data') {
-        // Auto-execute SQL and process results with Gemini
-        const sqlRes = await api.executeSql({
-          sql_query: data.sql_query,
-          database: selectedDb || data.database,
-        });
+        try {
+          // Try executing SQL if provided
+          const sqlRes = await api.executeSql({
+            sql_query: data.sql_query,
+            database: selectedDb || data.database,
+          });
 
-        if (!sqlRes?.success) {
+          // Process results through Gemini
+          const processedRes = await api.processQueryResults({
+            query: text,
+            results: sqlRes.data?.results || [],
+            sql: data.sql_query
+          });
+
           pushMessage({
             role: 'assistant',
-            content: 'Failed to execute query.',
+            content: processedRes.data?.natural_response || data.explanation || 'Here are your results:',
+            sql: data.sql_query,
+            sqlResults: sqlRes.data?.results || [],
+            explanation: data.explanation,
+            warnings: data.warnings || [],
+            assumptions: data.assumptions || [],
           });
-          return;
+        } catch (sqlError) {
+          // If SQL execution fails but we have metadata/explanation, use that
+          pushMessage({
+            role: 'assistant',
+            content: data.explanation || 'Based on the database structure:',
+            sql: data.sql_query,
+            warnings: data.warnings || [],
+            assumptions: data.assumptions || [],
+          });
         }
-
-        // Process results through Gemini
-        const processedRes = await api.processQueryResults({
-          query: text,
-          results: sqlRes.data?.results || [],
-          sql: data.sql_query
-        });
-
-        pushMessage({
-          role: 'assistant',
-          content: processedRes.data?.natural_response || 'Here are your results:',
-          sql: data.sql_query,
-          sqlResults: sqlRes.data?.results || [],
-          explanation: data.explanation,
-          warnings: data.warnings || [],
-          assumptions: data.assumptions || [],
-        });
       }
     } catch (e) {
       pushMessage({
