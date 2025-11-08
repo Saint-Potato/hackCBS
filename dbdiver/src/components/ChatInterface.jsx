@@ -353,12 +353,28 @@ const ChatInterface = () => {
 
       const data = res.data || {};
       if (data.type === 'schema') {
-        // For schema questions, format response directly from the query results
-        const schemaResponse = renderSchemaSummary(text, selectedDb || data.database, data.results);
-        pushMessage({
-          role: 'assistant',
-          content: schemaResponse,
-        });
+        // Process schema results through Gemini
+        try {
+          const processedRes = await api.processQueryResults({
+            query: text,
+            results: data.results || [],
+            sql: '' // No SQL for schema queries
+          });
+
+          pushMessage({
+            role: 'assistant',
+            content: processedRes.data?.natural_response,
+            sqlResults: data.results,
+            explanation: data.explanation,
+          });
+        } catch (processError) {
+          // Fallback to original schema summary if processing fails
+          const schemaResponse = renderSchemaSummary(text, selectedDb || data.database, data.results);
+          pushMessage({
+            role: 'assistant',
+            content: schemaResponse,
+          });
+        }
       } else if (data.type === 'data') {
         try {
           // Try executing SQL if provided
