@@ -791,7 +791,7 @@ class EnhancedDatabaseCLI:
     async def get_table_list(
         self, db_type: DatabaseType, config: DatabaseConfig
     ) -> List[str]:
-        """Get actual list of tables from the database"""
+        """Get actual list of tables from the database - with debug info"""
         try:
             if db_type == DatabaseType.MYSQL:
                 query = "SHOW TABLES"
@@ -800,8 +800,9 @@ class EnhancedDatabaseCLI:
             else:
                 return []
 
-            # FIX: First establish connection, then execute query
-            # Option 1: Try using execute_query with proper connection setup
+            print(f"🔍 Debug: Executing '{query}' on {db_type.value}")
+
+            # Try using execute_query with proper connection setup
             try:
                 # Store current connection for this database type
                 original_connection = self.connector.current_connections.get(
@@ -814,6 +815,13 @@ class EnhancedDatabaseCLI:
                 # Execute the query
                 results = await self.connector.execute_query(db_type, query)
 
+                print(f"🔍 Debug: Raw results: {results}")
+                print(f"🔍 Debug: Results type: {type(results)}")
+                if results:
+                    print(f"🔍 Debug: Number of results: {len(results)}")
+                    for i, row in enumerate(results):
+                        print(f"🔍 Debug: Row {i}: {row} (type: {type(row)})")
+
                 # Restore original connection
                 if original_connection:
                     self.connector.current_connections[db_type.value] = (
@@ -822,7 +830,8 @@ class EnhancedDatabaseCLI:
                 else:
                     self.connector.current_connections.pop(db_type.value, None)
 
-            except AttributeError:
+            except AttributeError as ae:
+                print(f"🔍 Debug: AttributeError - using direct connection: {ae}")
                 # Option 2: If execute_query doesn't work, try direct database connection
                 if db_type == DatabaseType.MYSQL:
                     import aiomysql
@@ -837,32 +846,40 @@ class EnhancedDatabaseCLI:
                     async with conn.cursor() as cursor:
                         await cursor.execute(query)
                         results = await cursor.fetchall()
+                        print(f"🔍 Debug: Direct connection results: {results}")
                     await conn.ensure_closed()
                 else:
-                    # For PostgreSQL, similar approach
                     return []
 
-            # Extract table names from results
+            # Extract table names from results - ENHANCED PROCESSING
+            table_names = []
             if results:
-                if db_type == DatabaseType.MYSQL:
-                    return [
-                        row[0] if isinstance(row, (list, tuple)) else str(row)
-                        for row in results
-                    ]
-                elif db_type == DatabaseType.POSTGRESQL:
-                    return [
-                        (
-                            row[0]
-                            if isinstance(row, (list, tuple))
-                            else row.get("tablename", str(row))
-                        )
-                        for row in results
-                    ]
+                print(f"🔍 Debug: Processing {len(results)} results")
 
-            return []
+                for i, row in enumerate(results):
+                    print(f"🔍 Debug: Processing row {i}: {row}")
+
+                    if isinstance(row, (list, tuple)):
+                        table_name = str(row[0])
+                        print(f"🔍 Debug: Extracted from tuple/list: '{table_name}'")
+                    elif isinstance(row, dict):
+                        # Handle dictionary results
+                        table_name = str(list(row.values())[0])
+                        print(f"🔍 Debug: Extracted from dict: '{table_name}'")
+                    else:
+                        table_name = str(row)
+                        print(f"🔍 Debug: Extracted as string: '{table_name}'")
+
+                    table_names.append(table_name)
+
+            print(f"🔍 Debug: Final table list: {table_names}")
+            return table_names
 
         except Exception as e:
             print(f"Error getting table list: {e}")
+            import traceback
+
+            traceback.print_exc()
             return []
 
     # Update the menu handler
