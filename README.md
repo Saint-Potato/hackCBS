@@ -74,26 +74,17 @@ The React Frontend is in *dbdriver/*
 - **Database**: PostgreSQL, MySQL support
 - **Vector Database**: ChromaDB
 - **AI/ML**: Google Gemini API
-- **Visualization**: Chart.js, D3.js
-- **Frontend**: HTML5, CSS3, JavaScript
+- **Visualization**: matplotlib
+- **Frontend**: React.js
 - **Containerization**: Docker
-- **Cloud**: Google Cloud Run
-- **Security**: Secret Manager, Environment variables
+- **Security**: Environment variables
 
 ## 📋 Requirements
 
 - Python 3.12+
 - Docker (optional)
-- Google Cloud SDK (for cloud deployment)
-- Database (PostgreSQL/MySQL)
+- Database (PostgreSQL/MySQL/mongodb)
 - Gemini API key
 
-## 🆘 Support
-
-For support and questions:
-- Create an issue in this repository
-- Contact the development team
-
----
 
 Built with ❤️ for hackCBS 2025
