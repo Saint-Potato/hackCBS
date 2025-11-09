@@ -57,7 +57,7 @@ The React Frontend is in *dbdriver/*
 
 2. **Start the Application:**
    ```bash
-   python app.py
+   python main.py
    ```
 
 ## 📊 Visualization Features
