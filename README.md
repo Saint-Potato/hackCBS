@@ -4,6 +4,8 @@
 
 An intelligent database assistant that leverages RAG (Retrieval-Augmented Generation) technology to provide natural language querying, schema discovery, and analytics for your databases. Built with Flask, ChromaDB, and Google's Gemini AI.
 
+The React Frontend is in *dbdriver/*
+
 ## 🌟 Features
 
 - **Natural Language Database Queries**: Ask questions about your data in plain English
