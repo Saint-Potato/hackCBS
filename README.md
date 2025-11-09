@@ -12,7 +12,6 @@ The React Frontend is in *dbdriver/*
 - **Intelligent Schema Discovery**: Automatically analyzes and understands your database structure
 - **RAG-Powered Responses**: Uses ChromaDB for context-aware query generation
 - **Multi-Database Support**: Works with PostgreSQL, MySQL, and other SQL databases
-- **PDF Document Processing**: Upload and query PDF documents alongside your database
 - **Real-time Analytics**: Generate insights and visualizations from your data
 - **Interactive Data Visualizations**: 
   - Dynamic charts and graphs using Chart.js
