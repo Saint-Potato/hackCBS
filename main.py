@@ -7,6 +7,7 @@ import asyncio
 import sys
 import os
 import logging
+import datetime
 
 # Add the parent directory to Python path to import your existing modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -29,13 +30,10 @@ app = FastAPI(
 # Configure CORS for React app
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:3000",
-    ],  # Vite dev server and CRA
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=["*"],  # Allow all origins
+    allow_credentials=False,  # Must be False when allow_origins=["*"]
+    allow_methods=["*"],  # Allow all HTTP methods
+    allow_headers=["*"],  # Allow all headers
 )
 
 # Global instances
@@ -689,13 +687,29 @@ async def process_query_results(request: ProcessResultsRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for Cloud Run"""
+    return {
+        "status": "healthy",
+        "timestamp": datetime.now().isoformat(),
+        "service": "dbdiver-api",
+    }
+
+
 if __name__ == "__main__":
+    import os
     import uvicorn
 
+    # Use PORT environment variable (required for Cloud Run)
+    port = int(os.environ.get("PORT", 8000))
+
+    print(f"🚀 Starting DBDiver API server on port {port}")
+
     uvicorn.run(
-        "main:app",  # Use import string format for reload
-        host="0.0.0.0",
-        port=8000,
-        reload=True,
+        "main:app",
+        host="0.0.0.0",  # Must bind to 0.0.0.0 for Cloud Run
+        port=port,
+        reload=False,  # Disable reload in production
         log_level="info",
     )
