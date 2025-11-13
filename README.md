@@ -22,6 +22,12 @@ The React Frontend is in *dbdriver/*
 - **Cloud-Ready Deployment**: Easy deployment to Google Cloud Run
 - **Secure**: Environment-based configuration with secret management
 
+  <img width="1600" height="918" alt="image" src="https://github.com/user-attachments/assets/296f7b73-0afd-422c-9db0-4ca979373e85" />
+  Demo - https://www.youtube.com/watch?v=4xMtU57IqJA
+  
+
+
+
 ## 🏗️ Architecture
 
 ```
