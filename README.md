@@ -14,7 +14,7 @@ The React Frontend is in *dbdriver/*
 - **Multi-Database Support**: Works with PostgreSQL, MySQL, and other SQL databases
 - **Real-time Analytics**: Generate insights and visualizations from your data
 - **Interactive Data Visualizations**: 
-  - Dynamic charts and graphs using Chart.js
+  - Dynamic charts and graphs using matplotlib and seaborn
   - Real-time data plotting and analysis
   - Customizable visualization types (bar, line, pie, scatter plots)
   - Export visualizations as images
@@ -28,7 +28,7 @@ The React Frontend is in *dbdriver/*
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
 │   Frontend      │    │   Flask API      │    │   Database      │
 │   (Web UI)      │◄──►│   - Query Engine │◄──►│   - PostgreSQL  │
-│   - Chart.js    │    │   - RAG System   │    │   - MySQL       │
+│                 │    |   - RAG System   │    |   - MySQL       │
 │   - Visualizations   │   - Analytics    │    │                 │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
                               │
@@ -61,7 +61,7 @@ The React Frontend is in *dbdriver/*
 
 ## 📊 Visualization Features
 
-- **Interactive Charts**: Dynamic data visualization using Chart.js
+- **Interactive Charts**: Dynamic data visualization using matplotlib and seaborn
 - **Multiple Chart Types**: Bar charts, line graphs, pie charts, scatter plots
 - **Real-time Updates**: Live data visualization as queries are executed
 - **Export Capabilities**: Download charts as PNG/PDF
